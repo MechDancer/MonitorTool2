@@ -1,13 +1,10 @@
 ﻿using MechDancer.Common;
 using MechDancer.Framework.Net.Presets;
-using MechDancer.Framework.Net.Protocol;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Linq;
 using System.Net;
-using System.Numerics;
 using System.Threading.Tasks;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
@@ -15,7 +12,7 @@ using Windows.UI.Xaml.Controls;
 
 namespace MonitorTool2 {
     public sealed partial class MainPage {
-        public static readonly ObservableCollection<GroupNode> Groups 
+        public static readonly ObservableCollection<GroupNode> Groups
             = new ObservableCollection<GroupNode>();
 
         private GraphView _current;
@@ -89,14 +86,19 @@ namespace MonitorTool2 {
         private void RemoveGraph(object sender, RoutedEventArgs e) {
             if (!((sender as Button)?.DataContext is GraphicViewModel graph)) return;
             _graphs.Remove(graph);
+            graph.Close();
         }
         private void ListView_SelectionChanged(object sender, SelectionChangedEventArgs e) {
-            if (_current != null) MainGrid.Children.Remove(_current);
+            if (_current != null) {
+                MainGrid.Children.Remove(_current);
+                _current.Close();
+            }
             _current = e.AddedItems
                 .OfType<GraphicViewModel>()
                 .SingleOrDefault()
                 ?.Let(it => new GraphView(it))
                 .Also(it => {
+                    it.Open();
                     MainGrid.Children.Add(it);
                     Grid.SetColumn(it, 1);
                 });

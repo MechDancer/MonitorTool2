@@ -11,24 +11,29 @@ using Windows.UI.Xaml.Media;
 namespace MonitorTool2 {
     public sealed partial class GraphView {
         private GraphicViewModel _viewModel { get; }
-        private ObservableCollection<TopicViewModel> _allTopics
-            = new ObservableCollection<TopicViewModel>();
+        private ObservableCollection<TopicStub> _allTopics
+            = new ObservableCollection<TopicStub>();
 
         public GraphView(GraphicViewModel model) {
             InitializeComponent();
             _viewModel = model;
             model.Control = MainCanvas;
         }
-        private void CanvasControl_Draw(CanvasControl sender, CanvasDrawEventArgs args) {
+
+        public void Open() {
+            foreach (var topic in _viewModel.Topics) topic.IsPaused = false;
         }
-        private void DisplayListSelectionChanged(object sender, SelectionChangedEventArgs e) {
-            var list = ((ListView)sender).SelectedItems.OfType<TopicViewModel>();
-            var count = list.Count();
+        public void Close() {
+            foreach (var topic in _viewModel.Topics) topic.IsPaused = true;
+        }
+
+        private void CanvasControl_Draw(CanvasControl sender, CanvasDrawEventArgs args) {
         }
         private void TopicListSelectionChanged(object sender, SelectionChangedEventArgs e) {
             e.AddedItems
-                .OfType<TopicViewModel>()
+                .OfType<TopicStub>()
                 .SingleOrDefault()
+                ?.Let(it => new TopicViewModel(it))
                 ?.TakeUnless(_viewModel.Topics.Contains)
                 ?.Also(_viewModel.Topics.Add);
         }
@@ -41,27 +46,28 @@ namespace MonitorTool2 {
                 foreach (var topic in from dim in remote.Dimensions
                                       where dim.Dim == _viewModel.Dim
                                       from topic in dim.Topics
-                                      where _viewModel.Topics.None(it => it.CheckEquals(host, topic.Name))
-                                      select new TopicViewModel(host, topic.Name))
-                    _allTopics.Add(topic);
+                                      select new TopicStub(host, topic))
+                    if (_viewModel.Topics.None(it => it.CheckEquals(topic)))
+                        _allTopics.Add(topic);
             }
         }
     }
 
     public class GraphicViewModel : BindableBase {
-        public readonly ObservableCollection<TopicViewModel> Topics;
+        public readonly ObservableCollection<TopicViewModel> Topics
+            = new ObservableCollection<TopicViewModel>();
 
         private CanvasControl _control;
         private Color _background = Colors.Transparent;
         private bool _locked = false,
-                     _axisEquals = true,
+                     _axisEquals,
                      _autoRange = true,
                      _autoMove = false;
 
         public GraphicViewModel(string name, byte dim) {
             Name = name;
             Dim = dim;
-            Topics = new ObservableCollection<TopicViewModel>();
+            _axisEquals = dim > 1;
         }
 
         public string Name { get; }
@@ -105,27 +111,64 @@ namespace MonitorTool2 {
                 _control.ClearColor = _background;
             }
         }
+        public void Close() {
+            _control = null;
+            foreach (var topic in Topics) topic.Close();
+        }
 
         public static SolidColorBrush Brushify(Color color)
            => new SolidColorBrush(color);
     }
 
-    public class TopicViewModel : BindableBase {
-        private Color _color = NewRandomColor();
-        private readonly string _remote, _name;
+    public class TopicStub {
+        public readonly string Remote;
+        public readonly ITopicNode Core;
 
-        public string Title => $"{_remote}-{_name}";
+        public TopicStub(string remote, ITopicNode core) {
+            Remote = remote;
+            Core = core;
+        }
+        public override string ToString() => $"{Remote}-{Core.Name}";
+    }
+
+    public class TopicViewModel : BindableBase {
+        private readonly string _remote;
+        private readonly ITopicNode _core;
+        private Color _color = NewRandomColor();
+        private bool _active = false, 
+                     _pause = false;
+
+        public string Title => $"{_remote}-{_core.Name}";
         public Color Color {
             get => _color;
             set => SetProperty(ref _color, value);
         }
-
-        public TopicViewModel(string remote, string name) {
-            _remote = remote;
-            _name = name;
+        public bool Active {
+            get => _active;
+            set {
+                if (SetProperty(ref _active, value))
+                    _core.SetLevel(this, _active && !_pause ? TopicState.Active : TopicState.Subscribed);
+            }
         }
-        public bool CheckEquals(string remote, string name) =>
-            _remote == remote && _name == name;
+        public bool IsPaused {
+            get => _pause;
+            set {
+                _pause = value;
+                _core.SetLevel(this, _active && !_pause ? TopicState.Active : TopicState.Subscribed);
+            }
+        }
+
+        public TopicViewModel(TopicStub stub) {
+            _remote = stub.Remote;
+            _core = stub.Core;
+            _core.SetLevel(this, TopicState.Subscribed);
+        }
+        public bool CheckEquals(TopicStub stub) =>
+            _remote == stub.Remote && _core.Name == stub.Core.Name;
+        public void Close() {
+            _core.SetLevel(this, TopicState.None);
+        }
+
         public override string ToString() => Title;
         public override bool Equals(object obj) 
             => this == obj || Title == (obj as TopicViewModel)?.Title;

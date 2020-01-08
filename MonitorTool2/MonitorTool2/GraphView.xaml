@@ -90,14 +90,15 @@
                              Margin="2" 
                              Grid.Row="1" Grid.RowSpan="3"
                              Grid.Column="0" Grid.ColumnSpan="2"/>
-        <ListView SelectionMode="Multiple"
+        <ListView SelectionMode="None"
+                  IsItemClickEnabled="False"
                   ItemsSource="{x:Bind _viewModel.Topics}"
-                  SelectionChanged="DisplayListSelectionChanged"
                   HorizontalAlignment="Right"
                   Margin="2" Grid.Row="1" Grid.Column="1">
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="local:TopicViewModel">
                     <StackPanel Orientation="Horizontal">
+                        <CheckBox IsChecked="{x:Bind Active,Mode=TwoWay}" MinWidth="0"/>
                         <Button Width="32" Height="32"
                                 Background="{x:Bind local:GraphicViewModel.Brushify(Color),Mode=OneWay}">
                             <Button.Flyout>

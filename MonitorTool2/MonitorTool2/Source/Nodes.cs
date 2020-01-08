@@ -6,12 +6,29 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Numerics;
+using Windows.UI;
+using Windows.UI.Xaml.Media;
 
 namespace MonitorTool2 {
     internal static class Global {
         public static readonly DateTime T0 = DateTime.Now;
+
+        private static readonly SolidColorBrush
+            NoneBrush = new SolidColorBrush(Colors.DarkRed),
+            SubscribedBrush = new SolidColorBrush(Colors.Goldenrod),
+            ActiveBrush = new SolidColorBrush(Colors.LawnGreen);
+
+        public static SolidColorBrush StateBrush(this TopicState state) =>
+            state switch
+            {
+                TopicState.None => NoneBrush,
+                TopicState.Subscribed => SubscribedBrush,
+                TopicState.Active => ActiveBrush,
+                _ => null
+            };
     }
 
     /// <summary>
@@ -84,7 +101,7 @@ namespace MonitorTool2 {
     public abstract class DimensionNodeBase {
         public abstract byte Dim { get; }
 
-        public abstract ObservableCollection<TopicNode> Topics { get; }
+        public abstract ObservableCollection<ITopicNode> Topics { get; }
         public string Title => $"{Dim} 维信号";
         public abstract void Receive(string name, bool dir, bool frame, MemoryStream stream);
     }
@@ -98,11 +115,11 @@ namespace MonitorTool2 {
 
         public override byte Dim => 1;
 
-        public override ObservableCollection<TopicNode> Topics { get; }
+        public override ObservableCollection<ITopicNode> Topics { get; }
         public Dimension1Node(DateTime t0) {
             _t0 = t0;
             _topics = new Dictionary<string, Accumulator<Vector2>>();
-            Topics = new ObservableCollection<TopicNode>();
+            Topics = new ObservableCollection<ITopicNode>();
         }
         public override void Receive(string name, bool dir, bool frame, MemoryStream stream) {
             Debug.Assert(!dir);
@@ -124,11 +141,11 @@ namespace MonitorTool2 {
 
         public override byte Dim => 2;
 
-        public override ObservableCollection<TopicNode> Topics { get; }
+        public override ObservableCollection<ITopicNode> Topics { get; }
         public Dimension2Node() {
             _accumulators = new Dictionary<string, Accumulator<Vector3>>();
             _frames = new Dictionary<string, Frame<Vector3>>();
-            Topics = new ObservableCollection<TopicNode>();
+            Topics = new ObservableCollection<ITopicNode>();
         }
         public override void Receive(string name, bool dir, bool frame, MemoryStream stream) {
             if (frame) {
@@ -156,11 +173,11 @@ namespace MonitorTool2 {
 
         public override byte Dim => 3;
 
-        public override ObservableCollection<TopicNode> Topics { get; }
+        public override ObservableCollection<ITopicNode> Topics { get; }
         public Dimension3Node() {
             _accumulators = new Dictionary<string, Accumulator<(Vector3, Vector3)>>();
             _frames = new Dictionary<string, Frame<(Vector3, Vector3)>>();
-            Topics = new ObservableCollection<TopicNode>();
+            Topics = new ObservableCollection<ITopicNode>();
         }
         public override void Receive(string name, bool dir, bool frame, MemoryStream stream) {
             if (frame) {
@@ -179,34 +196,101 @@ namespace MonitorTool2 {
         }
     }
 
-    public interface TopicNode {
+    public enum TopicState { None, Subscribed, Active }
+    public interface ITopicNode {
         string Name { get; }
+        TopicState State { get; }
+
+        void SetLevel(object source, TopicState level);
     }
 
     /// <summary>
     /// 累积模式
     /// </summary>
-    public abstract class AccumulatorNodeBase : TopicNode {
+    public abstract class AccumulatorNodeBase : BindableBase, ITopicNode {
+        private readonly HashSet<object>
+            _subscribers = new HashSet<object>(),
+            _observers = new HashSet<object>();
+
+        private uint _capacity = 1000;
+        private TopicState _state = TopicState.None;
+
         public string Name { get; }
-        public ViewModel Model { get; } = new ViewModel();
-        public AccumulatorNodeBase(string name, bool dir)
+        public TopicState State {
+            get => _state;
+            private set => SetProperty(ref _state, value);
+        }
+        public uint Capacity {
+            get => _capacity;
+            set => SetProperty(ref _capacity, value);
+        }
+        protected AccumulatorNodeBase(string name, bool dir)
             => Name = $"[{(dir ? "位姿" : "位置")}][点]{name}";
-        public class ViewModel : BindableBase {
-            private uint _capacity = 1000;
-            public uint Capacity {
-                get => _capacity;
-                set => SetProperty(ref _capacity, value);
+
+        public void SetLevel(object source, TopicState level) {
+            switch (level) {
+                case TopicState.None:
+                    if (_subscribers.Remove(source))
+                        _observers.Remove(source);
+                    break;
+                case TopicState.Subscribed:
+                    if (!_observers.Remove(source))
+                        _subscribers.Add(source);
+                    break;
+                case TopicState.Active:
+                    if (_observers.Add(source))
+                        _subscribers.Add(source);
+                    break;
             }
+            if (_observers.Any())
+                State = TopicState.Active;
+            else if(_subscribers.Any())
+                State = TopicState.Subscribed;
+            else
+                State = TopicState.None;
         }
     }
 
     /// <summary>
     /// 帧模式
     /// </summary>
-    public abstract class FrameNodeBase : TopicNode {
+    public abstract class FrameNodeBase : BindableBase, ITopicNode {
+        private readonly HashSet<object>
+           _subscribers = new HashSet<object>(),
+           _observers = new HashSet<object>();
+
+        private TopicState _state = TopicState.None;
+
         public string Name { get; }
-        public FrameNodeBase(string name, bool dir)
+        public TopicState State {
+            get => _state;
+            private set => SetProperty(ref _state, value);
+        }
+        protected FrameNodeBase(string name, bool dir)
             => Name = $"[{(dir ? "位姿" : "位置")}][帧]{name}";
+
+        public void SetLevel(object source, TopicState level) {
+            switch (level) {
+                case TopicState.None:
+                    if (_subscribers.Remove(source))
+                        _observers.Remove(source);
+                    break;
+                case TopicState.Subscribed:
+                    if (!_observers.Remove(source))
+                        _subscribers.Add(source);
+                    break;
+                case TopicState.Active:
+                    if (_observers.Add(source))
+                        _subscribers.Add(source);
+                    break;
+            }
+            if (_observers.Any())
+                State = TopicState.Active;
+            else if (_subscribers.Any())
+                State = TopicState.Subscribed;
+            else
+                State = TopicState.None;
+        }
     }
 
     public class Accumulator<T> : AccumulatorNodeBase where T : struct {
