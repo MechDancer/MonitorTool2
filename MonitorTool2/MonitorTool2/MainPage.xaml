@@ -1,0 +1,215 @@
+﻿<Page
+    x:Class="MonitorTool2.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:MonitorTool2"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Page.Resources>
+        <DataTemplate x:Key="GroupTemplate" x:DataType="local:GroupNode">
+            <TreeViewItem ItemsSource="{x:Bind Remotes}" IsExpanded="True">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{x:Bind Address}"
+                               Margin="0,0,16,0"
+                               VerticalAlignment="Center"/>
+                    <Button Foreground="Gold"
+                            Margin="2,0"
+                            Content="&#xE93E;" FontFamily="Segoe MDL2 Assets"
+                            Click="Yell_Click"/>
+                    <Button Foreground="Tomato"
+                            Margin="2,0"
+                            Content="&#xE711;" FontFamily="Segoe MDL2 Assets"
+                            Click="ShutDown_Click"/>
+                </StackPanel>
+            </TreeViewItem>
+        </DataTemplate>
+
+        <DataTemplate x:Key="RemoteTemplate" x:DataType="local:RemoteNode">
+            <TreeViewItem ItemsSource="{x:Bind Dimensions}" IsExpanded="True">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{x:Bind Name}"
+                               Margin="0,0,16,0"
+                               VerticalAlignment="Center"/>
+                    <Button Foreground="Tomato"
+                            Margin="2,0"
+                            Content="&#xE711;" FontFamily="Segoe MDL2 Assets"
+                            Click="ReSync_Click"/>
+                </StackPanel>
+            </TreeViewItem>
+        </DataTemplate>
+
+        <DataTemplate x:Key="DimensionTemplate" x:DataType="local:DimensionNodeBase">
+            <TreeViewItem ItemsSource="{x:Bind Topics}" IsExpanded="True">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{x:Bind Title}"
+                               Margin="0,0,16,0"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </TreeViewItem>
+        </DataTemplate>
+
+        <DataTemplate x:Key="FrameTemplate" x:DataType="local:FrameNodeBase">
+            <StackPanel Orientation="Horizontal">
+                <Rectangle Fill="DarkRed"
+                           Height="8" Width="8"
+                           HorizontalAlignment="Center" 
+                           VerticalAlignment="Center"/>
+                <TextBlock Text="{x:Bind Name}"
+                           Margin="4,0,16,0"
+                           VerticalAlignment="Center"/>
+                <Button Foreground="Tomato"
+                        Content="&#xED61;" FontFamily="Segoe MDL2 Assets" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="AccumulatorTemplate" x:DataType="local:AccumulatorNodeBase">
+            <StackPanel Orientation="Horizontal">
+                <Rectangle Fill="DarkRed"
+                           Height="8" Width="8"
+                           HorizontalAlignment="Center" 
+                           VerticalAlignment="Center"/>
+                <TextBlock Text="{x:Bind Name}"
+                           Margin="4,0,16,0"
+                           VerticalAlignment="Center"/>
+                <TextBlock Text="容量："
+                           VerticalAlignment="Center"/>
+                <TextBox Text="{x:Bind Model.Capacity, Mode=TwoWay}"
+                         VerticalContentAlignment="Bottom"/>
+                <Button Foreground="Tomato"
+                        VerticalAlignment="Stretch"
+                        Content="&#xED61;" FontFamily="Segoe MDL2 Assets" />
+            </StackPanel>
+        </DataTemplate>
+
+        <local:TreeTemplateSelector
+            x:Key="TreeTemplateSelector"
+            GroupTemplate="{StaticResource GroupTemplate}"
+            RemoteTemplate="{StaticResource RemoteTemplate}"
+            DimensionTemplate="{StaticResource DimensionTemplate}"
+            FrameTemplate="{StaticResource FrameTemplate}"
+            AccumulatorTemplate="{StaticResource AccumulatorTemplate}"/>
+    </Page.Resources>
+
+    <SplitView x:Name="ConfigView"
+               IsPaneOpen="True" 
+               OpenPaneLength="480">
+        <SplitView.Pane>
+            <Grid Margin="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition/>
+                </Grid.ColumnDefinitions>
+
+                <Button x:Name="AddButton"
+                        Foreground="LawnGreen"
+                        VerticalAlignment="Stretch"
+                        Content="&#xE710;" FontFamily="Segoe MDL2 Assets"
+                        IsEnabled="False"
+                        Click="AddGroup"/>
+                <TextBox PlaceholderText="xxx.xxx.xxx.xxx:xxxxx"
+                         Text="233.33.33.33:23333"
+                         MaxLength="21"
+                         Grid.Row="0" Grid.Column="1"
+                         TextChanged="TextBox_TextChanged"/>
+                <TreeView ItemsSource="{x:Bind local:MainPage.Groups}"
+                          ItemTemplateSelector="{StaticResource TreeTemplateSelector}"
+                          Margin="-24,8,0,0"
+                          AllowDrop="False"
+                          CanDragItems="False"
+                          SelectionMode="None"
+                          Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"/>
+            </Grid>
+        </SplitView.Pane>
+        <SplitView x:Name="GraphList"
+                   PanePlacement="Right"
+                   OpenPaneLength="320">
+            <SplitView.Pane>
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Content="&#xE710;" FontFamily="Segoe MDL2 Assets"
+                            Click="AddGraph"
+                            Foreground="LawnGreen"
+                            VerticalAlignment="Stretch"/>
+                    <TextBox x:Name="GraphNameBox"
+                             PlaceholderText="Untitled"
+                             MaxLength="12"
+                             Grid.Row="0" Grid.Column="1"/>
+                    <ComboBox x:Name="DimBox"
+                              SelectedIndex="1"
+                              Grid.Row="0" Grid.Column="2">
+                        <x:String>1 维</x:String>
+                        <x:String>2 维</x:String>
+                        <x:String>3 维</x:String>
+                    </ComboBox>
+                    <ListView ItemsSource="{x:Bind _graphs}"
+                              Margin="0,8,0,0"
+                              HorizontalAlignment="Stretch"
+                              HorizontalContentAlignment="Stretch"
+                              Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                              SelectedIndex="0"
+                              SelectionChanged="ListView_SelectionChanged">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="local:GraphicViewModel">
+                                <Grid Width="280">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{x:Bind Name}"
+                                                   FontWeight="Bold" FontSize="16"
+                                                   VerticalAlignment="Center"
+                                                   Grid.Column="0" Grid.ColumnSpan="5"/>
+                                        <TextBlock Text="{x:Bind Dim}" 
+                                                   VerticalAlignment="Bottom"
+                                                   Grid.Column="1" Margin="8,0,2,0"/>
+                                        <TextBlock VerticalAlignment="Bottom"
+                                                   Grid.Column="2">维</TextBlock>
+                                        <TextBlock Text="{x:Bind Topics.Count, Mode=OneWay}" 
+                                                   VerticalAlignment="Bottom"
+                                                   Grid.Column="3" Margin="8,0,2,0"/>
+                                        <TextBlock VerticalAlignment="Bottom"
+                                                   Grid.Column="4">话题</TextBlock>
+                                    </StackPanel>
+                                    <Button Content="&#xE711;" FontFamily="Segoe MDL2 Assets"
+                                            Foreground="Tomato"
+                                            Click="RemoveGraph"
+                                            HorizontalAlignment="Right"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+            </SplitView.Pane>
+            <Grid x:Name="MainGrid">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Button Content="&#xE76C;" 
+                        FontFamily="Segoe MDL2 Assets"
+                        VerticalAlignment="Stretch"
+                        Grid.Column="0"
+                        Click="ShowTopics"/>
+                <Button Content="&#xE76B;" 
+                        FontFamily="Segoe MDL2 Assets"
+                        VerticalAlignment="Stretch"
+                        Grid.Column="2"
+                        Click="ShowGraphList"/>
+            </Grid>
+        </SplitView>
+    </SplitView>
+</Page>
