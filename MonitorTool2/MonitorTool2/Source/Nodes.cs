@@ -82,9 +82,9 @@ namespace MonitorTool2 {
     /// 维度细分节点
     /// </summary>
     public abstract class DimensionNodeBase {
-        protected abstract byte Dim { get; }
+        public abstract byte Dim { get; }
 
-        public abstract ObservableCollection<object> Topics { get; }
+        public abstract ObservableCollection<TopicNode> Topics { get; }
         public string Title => $"{Dim} 维信号";
         public abstract void Receive(string name, bool dir, bool frame, MemoryStream stream);
     }
@@ -96,18 +96,18 @@ namespace MonitorTool2 {
         private readonly DateTime _t0;
         private readonly Dictionary<string, Accumulator<Vector2>> _topics;
 
-        protected override byte Dim => 1;
+        public override byte Dim => 1;
 
-        public override ObservableCollection<object> Topics { get; }
+        public override ObservableCollection<TopicNode> Topics { get; }
         public Dimension1Node(DateTime t0) {
             _t0 = t0;
             _topics = new Dictionary<string, Accumulator<Vector2>>();
-            Topics = new ObservableCollection<object>();
+            Topics = new ObservableCollection<TopicNode>();
         }
         public override void Receive(string name, bool dir, bool frame, MemoryStream stream) {
             Debug.Assert(!dir);
             Debug.Assert(!frame);
-            if (!_topics.TryGetValue(name,out var accumulator)) {
+            if (!_topics.TryGetValue(name, out var accumulator)) {
                 accumulator = new Accumulator<Vector2>(name, dir);
                 _topics.Add(name, accumulator);
                 Topics.Add(accumulator);
@@ -122,13 +122,13 @@ namespace MonitorTool2 {
         private readonly Dictionary<string, Accumulator<Vector3>> _accumulators;
         private readonly Dictionary<string, Frame<Vector3>> _frames;
 
-        protected override byte Dim => 2;
+        public override byte Dim => 2;
 
-        public override ObservableCollection<object> Topics { get; }
+        public override ObservableCollection<TopicNode> Topics { get; }
         public Dimension2Node() {
             _accumulators = new Dictionary<string, Accumulator<Vector3>>();
             _frames = new Dictionary<string, Frame<Vector3>>();
-            Topics = new ObservableCollection<object>();
+            Topics = new ObservableCollection<TopicNode>();
         }
         public override void Receive(string name, bool dir, bool frame, MemoryStream stream) {
             if (frame) {
@@ -150,17 +150,17 @@ namespace MonitorTool2 {
     /// <summary>
     /// 3 维节点
     /// </summary>
-    public class Dimension3Node: DimensionNodeBase {
+    public class Dimension3Node : DimensionNodeBase {
         private readonly Dictionary<string, Accumulator<(Vector3, Vector3)>> _accumulators;
         private readonly Dictionary<string, Frame<(Vector3, Vector3)>> _frames;
 
-        protected override byte Dim => 3;
+        public override byte Dim => 3;
 
-        public override ObservableCollection<object> Topics { get; }
+        public override ObservableCollection<TopicNode> Topics { get; }
         public Dimension3Node() {
             _accumulators = new Dictionary<string, Accumulator<(Vector3, Vector3)>>();
             _frames = new Dictionary<string, Frame<(Vector3, Vector3)>>();
-            Topics = new ObservableCollection<object>();
+            Topics = new ObservableCollection<TopicNode>();
         }
         public override void Receive(string name, bool dir, bool frame, MemoryStream stream) {
             if (frame) {
@@ -179,10 +179,14 @@ namespace MonitorTool2 {
         }
     }
 
+    public interface TopicNode {
+        string Name { get; }
+    }
+
     /// <summary>
     /// 累积模式
     /// </summary>
-    public abstract class AccumulatorNodeBase {
+    public abstract class AccumulatorNodeBase : TopicNode {
         public string Name { get; }
         public ViewModel Model { get; } = new ViewModel();
         public AccumulatorNodeBase(string name, bool dir)
@@ -199,7 +203,7 @@ namespace MonitorTool2 {
     /// <summary>
     /// 帧模式
     /// </summary>
-    public abstract class FrameNodeBase {
+    public abstract class FrameNodeBase : TopicNode {
         public string Name { get; }
         public FrameNodeBase(string name, bool dir)
             => Name = $"[{(dir ? "位姿" : "位置")}][帧]{name}";
