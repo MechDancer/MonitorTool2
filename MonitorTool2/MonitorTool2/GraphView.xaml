@@ -103,17 +103,28 @@
                                 Background="{x:Bind local:GraphicViewModel.Brushify(Color),Mode=OneWay}">
                             <Button.Flyout>
                                 <Flyout>
-                                    <Grid>
+                                    <Grid Width="320">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition/>
                                         </Grid.RowDefinitions>
-                                        <ToggleButton Content="背景模式" 
-                                                      Margin="0,0,0,4"
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition/>
+                                            <ColumnDefinition/>
+                                        </Grid.ColumnDefinitions>
+                                        <ToggleButton Content="连线"
+                                                      IsChecked="{x:Bind Connect,Mode=TwoWay}"
+                                                      Margin="0,0,2,4"
+                                                      Grid.Row="0" Grid.Column="0"
+                                                      HorizontalAlignment="Stretch"/>
+                                        <ToggleButton Content="背景模式"
+                                                      IsChecked="{x:Bind Background,Mode=TwoWay}"
+                                                      Margin="2,0,0,4"
+                                                      Grid.Row="0" Grid.Column="1"
                                                       HorizontalAlignment="Stretch"/>
                                         <ColorPicker Color="{x:Bind Color,Mode=TwoWay}"
                                                      Style="{StaticResource ClearColorPicker}"
-                                                     Grid.Row="1"/>
+                                                     Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"/>
                                     </Grid>
                                 </Flyout>
                             </Button.Flyout>

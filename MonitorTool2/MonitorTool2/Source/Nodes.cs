@@ -296,9 +296,8 @@ namespace MonitorTool2 {
         protected AccumulatorNodeBase(string name, bool dir)
             => Name = $"[{(dir ? "位姿" : "位置")}][点]{name}";
         protected void Paint() {
-            foreach (var observer in _observers) {
-
-            }
+            foreach (var observer in _observers)
+                observer.Paint();
         }
 
         public void SetLevel(GraphicViewModel source, TopicState level) {
@@ -345,9 +344,8 @@ namespace MonitorTool2 {
         protected FrameNodeBase(string name, bool dir)
             => Name = $"[{(dir ? "位姿" : "位置")}][帧]{name}";
         protected void Paint() {
-            foreach(var observer in _observers) {
-
-            }
+            foreach(var observer in _observers)
+                observer.Paint();
         }
 
         public void SetLevel(GraphicViewModel source, TopicState level) {
