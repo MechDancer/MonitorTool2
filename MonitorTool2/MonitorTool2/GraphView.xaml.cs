@@ -11,20 +11,13 @@ using Windows.UI.Xaml.Media;
 namespace MonitorTool2 {
     public sealed partial class GraphView {
         private GraphicViewModel _viewModel { get; }
-        private ObservableCollection<TopicStub> _allTopics
+        private ObservableCollection<TopicStub> _allTopics { get; }
             = new ObservableCollection<TopicStub>();
 
         public GraphView(GraphicViewModel model) {
             InitializeComponent();
             _viewModel = model;
-            model.Control = MainCanvas;
-        }
-
-        public void Open() {
-            foreach (var topic in _viewModel.Topics) topic.IsPaused = false;
-        }
-        public void Close() {
-            foreach (var topic in _viewModel.Topics) topic.IsPaused = true;
+            model.SetControl(MainCanvas);
         }
 
         private void CanvasControl_Draw(CanvasControl sender, CanvasDrawEventArgs args) {
@@ -54,10 +47,10 @@ namespace MonitorTool2 {
     }
 
     public class GraphicViewModel : BindableBase {
-        public readonly ObservableCollection<TopicViewModel> Topics
+        public ObservableCollection<TopicViewModel> Topics { get; }
             = new ObservableCollection<TopicViewModel>();
 
-        private CanvasControl _control;
+        private CanvasControl _canvas;
         private Color _background = Colors.Transparent;
         private bool _locked = false,
                      _axisEquals,
@@ -76,7 +69,7 @@ namespace MonitorTool2 {
             get => _background;
             set {
                 if (!SetProperty(ref _background, value)) return;
-                if (Control != null) Control.ClearColor = value;
+                if (_canvas != null) _canvas.ClearColor = value;
             }
         }
         public bool IsLocked {
@@ -101,18 +94,18 @@ namespace MonitorTool2 {
                     AutoRange = false;
             }
         }
-        public CanvasControl Control {
-            get => _control;
-            set {
-                if (_control == value) return;
-                _control = value;
 
-                if (_control == null) return;
-                _control.ClearColor = _background;
-            }
+        public void SetControl(CanvasControl canvas) {
+            _canvas = canvas?.Also(it => it.ClearColor = _background);
+        }
+        public void Resume() {
+            foreach (var topic in Topics) topic.IsPaused = false;
+        }
+        public void Pause() {
+            foreach (var topic in Topics) topic.IsPaused = true;
         }
         public void Close() {
-            _control = null;
+            _canvas = null;
             foreach (var topic in Topics) topic.Close();
         }
 
@@ -135,7 +128,7 @@ namespace MonitorTool2 {
         private readonly string _remote;
         private readonly ITopicNode _core;
         private Color _color = NewRandomColor();
-        private bool _active = false, 
+        private bool _active = false,
                      _pause = false;
 
         public string Title => $"{_remote}-{_core.Name}";
@@ -163,14 +156,13 @@ namespace MonitorTool2 {
             _core = stub.Core;
             _core.SetLevel(this, TopicState.Subscribed);
         }
-        public bool CheckEquals(TopicStub stub) =>
-            _remote == stub.Remote && _core.Name == stub.Core.Name;
-        public void Close() {
-            _core.SetLevel(this, TopicState.None);
-        }
+        public bool CheckEquals(TopicStub stub)
+            => _remote == stub.Remote && _core.Name == stub.Core.Name;
+        public void Close()
+            => _core.SetLevel(this, TopicState.None);
 
         public override string ToString() => Title;
-        public override bool Equals(object obj) 
+        public override bool Equals(object obj)
             => this == obj || Title == (obj as TopicViewModel)?.Title;
         public override int GetHashCode()
             => Title.GetHashCode();
@@ -178,7 +170,7 @@ namespace MonitorTool2 {
         private static readonly Random _engine = new Random();
         private static Color NewRandomColor() {
             var rgb = new byte[3];
-             _engine.NextBytes(rgb);
+            _engine.NextBytes(rgb);
             return Color.FromArgb(255, rgb[0], rgb[1], rgb[2]);
         }
     }

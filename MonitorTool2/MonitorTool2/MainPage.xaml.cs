@@ -9,14 +9,17 @@ using System.Threading.Tasks;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Controls.Primitives;
 
 namespace MonitorTool2 {
     public sealed partial class MainPage {
         public static readonly ObservableCollection<GroupNode> Groups
             = new ObservableCollection<GroupNode>();
 
-        private GraphView _current;
+        private Tuple<GraphView, GraphicViewModel> _current;
+
         private IPEndPoint _memory;
+
         private readonly HashSet<IPEndPoint> _endPoints;
         private readonly ObservableCollection<GraphicViewModel> _graphs;
         public MainPage() {
@@ -90,18 +93,28 @@ namespace MonitorTool2 {
         }
         private void ListView_SelectionChanged(object sender, SelectionChangedEventArgs e) {
             if (_current != null) {
-                MainGrid.Children.Remove(_current);
-                _current.Close();
+                var (view, model) = _current;
+                MainGrid.Children.Remove(view);
+                model.Pause();
             }
-            _current = e.AddedItems
+            _current =
+                e.AddedItems
                 .OfType<GraphicViewModel>()
                 .SingleOrDefault()
-                ?.Let(it => new GraphView(it))
-                .Also(it => {
-                    it.Open();
-                    MainGrid.Children.Add(it);
-                    Grid.SetColumn(it, 1);
+                ?.Let(model => {
+                    var view = new GraphView(model);
+                    model.Resume();
+                    MainGrid.Children.Add(view);
+                    Grid.SetColumn(view, 1);
+                    return Tuple.Create(view, model);
                 });
+        }
+        private void LeftInline(object sender, RoutedEventArgs e) {
+            VisualStateManager.GoToState(this, nameof(LeftInline), false);
+        }
+        private void LeftOverlay(object sender, RoutedEventArgs e) {
+            VisualStateManager.GoToState(this, nameof(LeftOverlay), false);
+            ConfigView.IsPaneOpen = false;
         }
     }
 

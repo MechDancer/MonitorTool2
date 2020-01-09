@@ -105,6 +105,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <Button x:Name="AddButton"
@@ -118,13 +119,19 @@
                          MaxLength="21"
                          Grid.Row="0" Grid.Column="1"
                          TextChanged="TextBox_TextChanged"/>
+                <ToggleButton Checked="LeftInline"
+                              Unchecked="LeftOverlay"
+                              VerticalAlignment="Stretch"
+                              Margin="8,0,0,0"
+                              Grid.Row="0" Grid.Column="2"
+                              Content="&#xE840;" FontFamily="Segoe MDL2 Assets"/>
                 <TreeView ItemsSource="{x:Bind local:MainPage.Groups}"
                           ItemTemplateSelector="{StaticResource TreeTemplateSelector}"
                           Margin="-24,8,0,0"
                           AllowDrop="False"
                           CanDragItems="False"
                           SelectionMode="None"
-                          Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"/>
+                          Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"/>
             </Grid>
         </SplitView.Pane>
         <SplitView x:Name="GraphList"
@@ -199,7 +206,8 @@
                     <ColumnDefinition/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <Button Content="&#xE76C;" 
+                <Button x:Name="LeftExpandButton"
+                        Content="&#xE76C;" 
                         FontFamily="Segoe MDL2 Assets"
                         VerticalAlignment="Stretch"
                         Grid.Column="0"
@@ -211,5 +219,17 @@
                         Click="ShowGraphList"/>
             </Grid>
         </SplitView>
+
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup>
+                <VisualState x:Name="LeftOverlay"/>
+                <VisualState x:Name="LeftInline">
+                    <VisualState.Setters>
+                        <Setter Target="ConfigView.DisplayMode" Value="Inline"/>
+                        <Setter Target="LeftExpandButton.Visibility" Value="Collapsed"/>
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
     </SplitView>
 </Page>
