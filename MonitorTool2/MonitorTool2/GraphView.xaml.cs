@@ -29,7 +29,7 @@ namespace MonitorTool2 {
             // 工作范围
             var outlineAll = _viewModel.AutoRange ? new Outline() : (Outline?)null;
             var outlineFrame = _viewModel.AutoMove ? new Outline() : (Outline?)null;
-            // 抄录所有点，同时确定工作范围
+            // 从话题缓存抄录所有点，同时确定工作范围
             IEnumerable<List<Vector3>> Split(TopicViewModel topic) {
                 // 取出迭代器，没有任何点则直接退出
                 var itor = topic.Data.OfType<Vector3>().GetEnumerator();
@@ -75,9 +75,9 @@ namespace MonitorTool2 {
             // 执行抄录
             var topics = (from topic in _viewModel.Topics
                           where topic.Active
-                          let @group = Split(topic).ToList()
-                          where @group.Any()
-                          select Tuple.Create(topic.Color, @group)
+                          let data = Split(topic).ToList()
+                          where data.Any()
+                          select Tuple.Create(topic.Color, data)
                          ).ToList();
             // 没有任何点直接退出
             if (topics.None()) return;
@@ -86,23 +86,73 @@ namespace MonitorTool2 {
             // 画布尺寸
             var width = (float)sender.ActualWidth;
             var height = (float)sender.ActualHeight;
+            var currentOutline = _viewModel.Outline.Tile(width, height); 
             // 自动范围
             if (outlineAll.HasValue) {
                 // 范围太小？
-                var tooSmall = outlineAll.Value.IsTooSmall(out var optimized);
-                // 更新范围
-                _viewModel.Outline = optimized.Tile(width, height);
-                // 范围太小，其实只有一个点，画出即可
-                if (tooSmall) {
-                    var c = new Vector2(width / 2, height / 2);
+                if (outlineAll.Value.IsTooSmall(out var c)) {
+                    // 原范围中心移动到重合新范围中心
+                    var (min, max) = currentOutline.Range;
+                    var d = (max - min) / 2;
+                    _viewModel.Outline = new Outline(c - d, c + d);
+                    // 范围太小，其实只有一个点，画出即可
+                    c = new Vector2(width / 2, height / 2);
                     foreach (var (color, _) in topics)
                         brush.DrawCircle(c, 1, color, 2);
                     return;
                 }
+                _viewModel.Outline = currentOutline;
             }
             // 自动移动
-            else if (outlineFrame.HasValue) {
-                throw new NotImplementedException();
+            if (outlineFrame.HasValue) {
+                float x0, y0, x1, y1,
+                      w0, h0, w1, h1;
+                var (min0, max0) = currentOutline.Range;
+                var (min1, max1) = outlineFrame.Value.Range;
+                {
+                    var d0 = max0 - min0;
+                    var d1 = max1 - min1;
+                    w0 = d0.X;
+                    w1 = d1.X;
+                    h0 = d0.Y;
+                    h1 = d1.Y;
+                }
+                // 移动 x
+                if (w1 >= w0) {
+                    // 新的范围更宽，直接取
+                    x0 = min1.X;
+                    x1 = max1.X;
+                } else {
+                    // 否则移动旧的范围
+                    if (min1.X < min0.X) {
+                        // 左移
+                        x0 = min1.X;
+                        x1 = x0 + w0;
+                    } else {
+                        // 右移
+                        x1 = max1.X;
+                        x0 = x1 - w0;
+                    }
+                }
+                // 移动 y
+                if (h1 >= h0) {
+                    // 新的范围更高，直接取
+                    y0 = min1.Y;
+                    y1 = max1.Y;
+                } else {
+                    // 否则移动旧的范围
+                    if (min1.Y < min0.Y) {
+                        // 下移
+                        y0 = min1.Y;
+                        y1 = y0 + h0;
+                    } else {
+                        // 上移
+                        y1 = max1.Y;
+                        y0 = y1 - h0;
+                    }
+                }
+                // 更新范围
+                _viewModel.Outline = new Outline(x0, y0, x1, y1).Tile(width,height);
             }
             //TODO else 其他更新范围方式
         }
@@ -140,6 +190,8 @@ namespace MonitorTool2 {
             _x1 = x1;
             _y1 = y1;
         }
+        public Outline(Vector2 lb, Vector2 rt)
+            : this(lb.X, lb.Y, rt.X, rt.Y) { }
 
         public (Vector2, Vector2) Range
             => (new Vector2(_x0, _y0), new Vector2(_x1, _y1));
@@ -154,18 +206,15 @@ namespace MonitorTool2 {
         /// <summary>
         /// 范围是否过小
         /// </summary>
-        /// <param name="optimized">若原范围过小，以原范围为中心，2x2 的范围，否则为原范围</param>
+        /// <param name="optimized">若原范围过小，取原范围的中心</param>
         /// <returns>范围是否过小</returns>
-        public bool IsTooSmall(out Outline optimized) {
+        public bool IsTooSmall(out Vector2 c) {
             var (a, b) = Range;
             if ((a - b).Length() < 1E-6) {
-                var c = (a + b) / 2;
-                a = c - One;
-                b = c + One;
-                optimized = new Outline(a.X, a.Y, b.X, b.Y);
+                c = (a + b) / 2;
                 return true;
             }
-            optimized = this;
+            c = default;
             return false;
         }
 
@@ -190,8 +239,6 @@ namespace MonitorTool2 {
                 return new Outline(_x0 - e, _y0, _x1 + e, _y1);
             }
         }
-
-        private static readonly Vector2 One = new Vector2(1, 1);
     }
 
     /// <summary>
@@ -246,6 +293,7 @@ namespace MonitorTool2 {
             }
         }
         internal Outline Outline { get; set; }
+        = new Outline(-1, -1, 1, 1);
 
         public void SetControl(CanvasControl canvas) {
             _canvas = canvas?.Also(it => it.ClearColor = _background);
