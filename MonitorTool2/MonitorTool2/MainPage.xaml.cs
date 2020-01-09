@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Controls.Primitives;
 
 namespace MonitorTool2 {
     public sealed partial class MainPage {
@@ -110,10 +109,10 @@ namespace MonitorTool2 {
                 });
         }
         private void LeftInline(object sender, RoutedEventArgs e) {
-            VisualStateManager.GoToState(this, nameof(LeftInline), false);
+            VisualStateManager.GoToState(this, nameof(LeftInlineState), false);
         }
         private void LeftOverlay(object sender, RoutedEventArgs e) {
-            VisualStateManager.GoToState(this, nameof(LeftOverlay), false);
+            VisualStateManager.GoToState(this, nameof(LeftOverlayState), false);
             ConfigView.IsPaneOpen = false;
         }
     }

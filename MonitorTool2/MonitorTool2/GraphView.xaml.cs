@@ -9,6 +9,9 @@ using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media;
 
 namespace MonitorTool2 {
+    /// <summary>
+    /// 画图控件
+    /// </summary>
     public sealed partial class GraphView {
         private GraphicViewModel _viewModel { get; }
         private ObservableCollection<TopicStub> _allTopics { get; }
@@ -26,7 +29,7 @@ namespace MonitorTool2 {
             e.AddedItems
                 .OfType<TopicStub>()
                 .SingleOrDefault()
-                ?.Let(it => new TopicViewModel(it))
+                ?.Let(it => new TopicViewModel(it, _viewModel))
                 ?.TakeUnless(_viewModel.Topics.Contains)
                 ?.Also(_viewModel.Topics.Add);
         }
@@ -46,6 +49,9 @@ namespace MonitorTool2 {
         }
     }
 
+    /// <summary>
+    /// 图模型
+    /// </summary>
     public class GraphicViewModel : BindableBase {
         public ObservableCollection<TopicViewModel> Topics { get; }
             = new ObservableCollection<TopicViewModel>();
@@ -113,6 +119,9 @@ namespace MonitorTool2 {
            => new SolidColorBrush(color);
     }
 
+    /// <summary>
+    /// 话题存根
+    /// </summary>
     public class TopicStub {
         public readonly string Remote;
         public readonly ITopicNode Core;
@@ -124,11 +133,16 @@ namespace MonitorTool2 {
         public override string ToString() => $"{Remote}-{Core.Name}";
     }
 
+    /// <summary>
+    /// 话题模型
+    /// </summary>
     public class TopicViewModel : BindableBase {
         private readonly string _remote;
         private readonly ITopicNode _core;
+        private readonly GraphicViewModel _graph;
+
         private Color _color = NewRandomColor();
-        private bool _active = false,
+        private bool _active = true,
                      _pause = false;
 
         public string Title => $"{_remote}-{_core.Name}";
@@ -140,26 +154,27 @@ namespace MonitorTool2 {
             get => _active;
             set {
                 if (SetProperty(ref _active, value))
-                    _core.SetLevel(this, _active && !_pause ? TopicState.Active : TopicState.Subscribed);
+                    _core.SetLevel(_graph, _active && !_pause ? TopicState.Active : TopicState.Subscribed);
             }
         }
         public bool IsPaused {
             get => _pause;
             set {
                 _pause = value;
-                _core.SetLevel(this, _active && !_pause ? TopicState.Active : TopicState.Subscribed);
+                _core.SetLevel(_graph, _active && !_pause ? TopicState.Active : TopicState.Subscribed);
             }
         }
 
-        public TopicViewModel(TopicStub stub) {
+        public TopicViewModel(TopicStub stub, GraphicViewModel graph) {
             _remote = stub.Remote;
             _core = stub.Core;
-            _core.SetLevel(this, TopicState.Subscribed);
+            _graph = graph;
+            _core.SetLevel(_graph, TopicState.Active);
         }
         public bool CheckEquals(TopicStub stub)
             => _remote == stub.Remote && _core.Name == stub.Core.Name;
         public void Close()
-            => _core.SetLevel(this, TopicState.None);
+            => _core.SetLevel(_graph, TopicState.None);
 
         public override string ToString() => Title;
         public override bool Equals(object obj)

@@ -222,8 +222,8 @@
 
         <VisualStateManager.VisualStateGroups>
             <VisualStateGroup>
-                <VisualState x:Name="LeftOverlay"/>
-                <VisualState x:Name="LeftInline">
+                <VisualState x:Name="LeftOverlayState"/>
+                <VisualState x:Name="LeftInlineState">
                     <VisualState.Setters>
                         <Setter Target="ConfigView.DisplayMode" Value="Inline"/>
                         <Setter Target="LeftExpandButton.Visibility" Value="Collapsed"/>

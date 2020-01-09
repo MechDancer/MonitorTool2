@@ -2,6 +2,7 @@
 using MechDancer.Framework.Net.Presets;
 using MechDancer.Framework.Net.Protocol;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -128,7 +129,13 @@ namespace MonitorTool2 {
                 accumulator = new Accumulator<Vector2>(name, dir);
                 _topics.Add(name, accumulator);
                 Topics.Add(accumulator);
-            }
+                return;
+            } else if (accumulator.State == TopicState.None)
+                return;
+            accumulator.Receive(
+                new Vector2(
+                    (float)(DateTime.Now - _t0).TotalMilliseconds,
+                    new NetworkDataReader(stream).ReadFloat()));
         }
     }
 
@@ -153,14 +160,40 @@ namespace MonitorTool2 {
                     frameNode = new Frame<Vector3>(name, dir);
                     _frames.Add(name, frameNode);
                     Topics.Add(frameNode);
-                }
+                    return;
+                } else if (frameNode.State == TopicState.None)
+                    return;
+                frameNode.Receive(Parse(dir, stream));
             } else {
                 if (!_accumulators.TryGetValue(name, out var accumulator)) {
                     accumulator = new Accumulator<Vector3>(name, dir);
                     _accumulators.Add(name, accumulator);
                     Topics.Add(accumulator);
-                }
+                    return;
+                } else if (accumulator.State == TopicState.None)
+                    return;
+                accumulator.Receive(Parse(dir, stream));
             }
+        }
+        private static Vector3[] Parse(bool dir, MemoryStream stream) {
+            var reader = new NetworkDataReader(stream);
+            Vector3[] buffer;
+            if (dir) {
+                var count = (stream.Length - stream.Position) / (3 * sizeof(float));
+                buffer = new Vector3[count];
+                for (var i = 0; i < count; ++i)
+                    buffer[i] = new Vector3(reader.ReadFloat(),
+                                            reader.ReadFloat(),
+                                            reader.ReadFloat());
+            } else {
+                var count = (stream.Length - stream.Position) / (2 * sizeof(float));
+                buffer = new Vector3[count];
+                for (var i = 0; i < count; ++i)
+                    buffer[i] = new Vector3(reader.ReadFloat(),
+                                            reader.ReadFloat(),
+                                            float.NaN);
+            }
+            return buffer;
         }
     }
 
@@ -168,6 +201,8 @@ namespace MonitorTool2 {
     /// 3 维节点
     /// </summary>
     public class Dimension3Node : DimensionNodeBase {
+        private static readonly Vector3 NaNVector = new Vector3(float.NaN, float.NaN, float.NaN);
+
         private readonly Dictionary<string, Accumulator<(Vector3, Vector3)>> _accumulators;
         private readonly Dictionary<string, Frame<(Vector3, Vector3)>> _frames;
 
@@ -180,19 +215,50 @@ namespace MonitorTool2 {
             Topics = new ObservableCollection<ITopicNode>();
         }
         public override void Receive(string name, bool dir, bool frame, MemoryStream stream) {
+            
             if (frame) {
                 if (!_frames.TryGetValue(name, out var frameNode)) {
                     frameNode = new Frame<(Vector3, Vector3)>(name, dir);
                     _frames.Add(name, frameNode);
                     Topics.Add(frameNode);
-                }
+                    return;
+                } else if (frameNode.State == TopicState.None)
+                    return;
+                frameNode.Receive(Parse(dir, stream));
             } else {
                 if (!_accumulators.TryGetValue(name, out var accumulator)) {
                     accumulator = new Accumulator<(Vector3, Vector3)>(name, dir);
                     _accumulators.Add(name, accumulator);
                     Topics.Add(accumulator);
-                }
+                    return;
+                } else if (accumulator.State == TopicState.None)
+                    return;
+                accumulator.Receive(Parse(dir, stream));
             }
+        }
+        private static (Vector3, Vector3)[] Parse(bool dir, MemoryStream stream) {
+            var reader = new NetworkDataReader(stream);
+            (Vector3, Vector3)[] buffer;
+            if (dir) {
+                var count = (stream.Length - stream.Position) / (6 * sizeof(float));
+                buffer = new (Vector3, Vector3)[count];
+                for (var i = 0; i < count; ++i)
+                    buffer[i] = (new Vector3(reader.ReadFloat(),
+                                             reader.ReadFloat(),
+                                             reader.ReadFloat()),
+                                 new Vector3(reader.ReadFloat(),
+                                             reader.ReadFloat(),
+                                             reader.ReadFloat()));
+            } else {
+                var count = (stream.Length - stream.Position) / (3 * sizeof(float));
+                buffer = new (Vector3, Vector3)[count];
+                for (var i = 0; i < count; ++i)
+                    buffer[i] = (new Vector3(reader.ReadFloat(),
+                                             reader.ReadFloat(),
+                                             reader.ReadFloat()),
+                                 NaNVector);
+            }
+            return buffer;
         }
     }
 
@@ -200,19 +266,20 @@ namespace MonitorTool2 {
     public interface ITopicNode {
         string Name { get; }
         TopicState State { get; }
+        IEnumerable Data { get; }
 
-        void SetLevel(object source, TopicState level);
+        void SetLevel(GraphicViewModel source, TopicState level);
     }
 
     /// <summary>
     /// 累积模式
     /// </summary>
     public abstract class AccumulatorNodeBase : BindableBase, ITopicNode {
-        private readonly HashSet<object>
-            _subscribers = new HashSet<object>(),
-            _observers = new HashSet<object>();
+        private readonly HashSet<GraphicViewModel>
+            _subscribers = new HashSet<GraphicViewModel>(),
+            _observers = new HashSet<GraphicViewModel>();
 
-        private uint _capacity = 1000;
+        private int _capacity = 1000;
         private TopicState _state = TopicState.None;
 
         public string Name { get; }
@@ -220,14 +287,21 @@ namespace MonitorTool2 {
             get => _state;
             private set => SetProperty(ref _state, value);
         }
-        public uint Capacity {
+        public int Capacity {
             get => _capacity;
             set => SetProperty(ref _capacity, value);
         }
+        public abstract IEnumerable Data { get; }
+
         protected AccumulatorNodeBase(string name, bool dir)
             => Name = $"[{(dir ? "位姿" : "位置")}][点]{name}";
+        protected void Paint() {
+            foreach (var observer in _observers) {
 
-        public void SetLevel(object source, TopicState level) {
+            }
+        }
+
+        public void SetLevel(GraphicViewModel source, TopicState level) {
             switch (level) {
                 case TopicState.None:
                     if (_subscribers.Remove(source))
@@ -244,7 +318,7 @@ namespace MonitorTool2 {
             }
             if (_observers.Any())
                 State = TopicState.Active;
-            else if(_subscribers.Any())
+            else if (_subscribers.Any())
                 State = TopicState.Subscribed;
             else
                 State = TopicState.None;
@@ -255,9 +329,9 @@ namespace MonitorTool2 {
     /// 帧模式
     /// </summary>
     public abstract class FrameNodeBase : BindableBase, ITopicNode {
-        private readonly HashSet<object>
-           _subscribers = new HashSet<object>(),
-           _observers = new HashSet<object>();
+        private readonly HashSet<GraphicViewModel>
+           _subscribers = new HashSet<GraphicViewModel>(),
+           _observers = new HashSet<GraphicViewModel>();
 
         private TopicState _state = TopicState.None;
 
@@ -266,10 +340,17 @@ namespace MonitorTool2 {
             get => _state;
             private set => SetProperty(ref _state, value);
         }
+        public abstract IEnumerable Data { get; }
+
         protected FrameNodeBase(string name, bool dir)
             => Name = $"[{(dir ? "位姿" : "位置")}][帧]{name}";
+        protected void Paint() {
+            foreach(var observer in _observers) {
 
-        public void SetLevel(object source, TopicState level) {
+            }
+        }
+
+        public void SetLevel(GraphicViewModel source, TopicState level) {
             switch (level) {
                 case TopicState.None:
                     if (_subscribers.Remove(source))
@@ -295,18 +376,31 @@ namespace MonitorTool2 {
 
     public class Accumulator<T> : AccumulatorNodeBase where T : struct {
         private readonly List<T> _data = new List<T>();
-        public IReadOnlyList<T> Data => _data;
+
+        public override IEnumerable Data => _data;
         public Accumulator(string name, bool dir) : base(name, dir) { }
-        public void Receive(List<T> data) {
+        public void Receive(params T[] data) {
+            if (data.Length >= Capacity) {
+                _data.Clear();
+                _data.AddRange(data.Take(Capacity));
+            } else {
+                (_data.Count + data.Length - Capacity)
+                    .AcceptIf(it => it > 0)
+                    ?.Also(it => _data.RemoveRange(0, Math.Min(_data.Count, it)));
+                _data.AddRange(data);
+            }
+            Paint();
         }
     }
 
     public class Frame<T> : FrameNodeBase where T : struct {
-        public IReadOnlyList<T> Data { get; private set; }
-        public Frame(string name, bool dir) : base(name, dir) {
-            Data = new List<T>();
-        }
-        public void Receive(List<T> data) {
+        private IReadOnlyList<T> _data = new List<T>();
+
+        public override IEnumerable Data => _data;
+        public Frame(string name, bool dir) : base(name, dir) { }
+        public void Receive(params T[] data) {
+            _data = data;
+            Paint();
         }
     }
 }
