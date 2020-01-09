@@ -26,47 +26,61 @@ namespace MonitorTool2 {
         }
 
         private void CanvasControl_Draw(CanvasControl sender, CanvasDrawEventArgs args) {
-            var buffer = new List<Tuple<Color, List<List<Vector3>>>>();
             // 工作范围
             var outlineAll = _viewModel.AutoRange ? new Outline() : (Outline?)null;
             var outlineFrame = _viewModel.AutoMove ? new Outline() : (Outline?)null;
             // 抄录所有点，同时确定工作范围
-            foreach (var topic in from topic in _viewModel.Topics
-                                  where topic.Active
-                                  select topic) {
-                var frame = topic.FrameMode;
-                var background = topic.Background;
-
-                Vector2? last = null;
-                var group = new List<Vector3>();
-                var groups = new List<List<Vector3>>();
-                // 遍历抄录点
-                foreach (var p in topic.Data.OfType<Vector3>()) {
-                    if (float.IsNaN(p.X)) {
-                        // 处理分隔符
-                        if (group.Any()) {
-                            groups.Add(group);
-                            group = new List<Vector3>();
+            IEnumerable<List<Vector3>> Split(TopicViewModel topic) {
+                // 取出迭代器，没有任何点则直接退出
+                var itor = topic.Data.OfType<Vector3>().GetEnumerator();
+                if (!itor.MoveNext()) yield break;
+                // 初始化末有效点存储
+                var last = (Vector3?)null;
+                // 否则按分隔符划分数据
+                IEnumerable<Vector3> Accumulate() {
+                    while (true) {
+                        var p = itor.Current;
+                        // 对于分隔符，由外部控制迭代器移动
+                        if (float.IsNaN(p.X)) yield break;
+                        // 非背景模式下，控制自动范围
+                        if (!topic.Background) {
+                            if (outlineAll.HasValue)
+                                outlineAll.Value.Add(p.X, p.Y);
+                            else if (outlineFrame.HasValue && topic.FrameMode)
+                                outlineFrame.Value.Add(p.X, p.Y);
                         }
-                    } else {
-                        // 处理点
-                        group.Add(p);
-                        last = new Vector2(p.X, p.Y);
-
-                        if (background) continue;
-                        if (outlineAll.HasValue)
-                            outlineAll.Value.Add(last.Value);
-                        else if (outlineFrame != null && frame)
-                            outlineFrame.Value.Add(last.Value);
+                        // 存储最末有效点
+                        last = p;
+                        yield return p;
+                        // 迭代器移动，失败直接退出
+                        if (!itor.MoveNext()) yield break;
                     }
                 }
-                // 添加到组
-                if (!frame && last.HasValue) outlineFrame?.Add(last.Value);
-                if (group.Any()) groups.Add(group);
-                if (groups.Any()) buffer.Add(Tuple.Create(topic.Color, groups));
+                // 执行划分
+                while (true) {
+                    var group = Accumulate().ToList();
+                    if (group.Any()) yield return group;
+                    // 迭代器移动，失败直接退出
+                    if (!itor.MoveNext()) {
+                        if (!topic.Background // 背景模式，跳过
+                         && !topic.FrameMode  // 帧模式，所有有效点已经计算过
+                         && !last.HasValue) { // 不存在有效点，跳过
+                            var p = last.Value;
+                            outlineFrame?.Add(p.X, p.Y);
+                        }
+                        yield break;
+                    }
+                }
             }
+            // 执行抄录
+            var topics = (from topic in _viewModel.Topics
+                          where topic.Active
+                          let @group = Split(topic).ToList()
+                          where @group.Any()
+                          select Tuple.Create(topic.Color, @group)
+                         ).ToList();
             // 没有任何点直接退出
-            if (buffer.None()) return;
+            if (topics.None()) return;
             // 笔刷
             var brush = args.DrawingSession;
             // 画布尺寸
@@ -78,10 +92,10 @@ namespace MonitorTool2 {
                 var tooSmall = outlineAll.Value.IsTooSmall(out var optimized);
                 // 更新范围
                 _viewModel.Outline = optimized.Tile(width, height);
-                // 范围太小，画出一个点
+                // 范围太小，其实只有一个点，画出即可
                 if (tooSmall) {
                     var c = new Vector2(width / 2, height / 2);
-                    foreach (var (color, _) in buffer)
+                    foreach (var (color, _) in topics)
                         brush.DrawCircle(c, 1, color, 2);
                     return;
                 }
@@ -102,17 +116,15 @@ namespace MonitorTool2 {
         }
         private void Flyout_Opening(object sender, object e) {
             _allTopics.Clear();
-            foreach (var remote in from _group in MainPage.Groups
-                                   from remote in _group.Remotes
-                                   select remote) {
-                var host = remote.Name;
-                foreach (var topic in from dim in remote.Dimensions
-                                      where dim.Dim == _viewModel.Dim
-                                      from topic in dim.Topics
-                                      select new TopicStub(host, topic))
-                    if (_viewModel.Topics.None(it => it.CheckEquals(topic)))
-                        _allTopics.Add(topic);
-            }
+            foreach (var topic in from _group in MainPage.Groups
+                                  from remote in _group.Remotes
+                                  from dim in remote.Dimensions
+                                  where dim.Dim == _viewModel.Dim
+                                  from topic in dim.Topics
+                                  let stub = new TopicStub(remote.Name, topic)
+                                  where _viewModel.Topics.None(it => it.CheckEquals(stub))
+                                  select stub)
+                _allTopics.Add(topic);
         }
     }
 
@@ -129,14 +141,14 @@ namespace MonitorTool2 {
             _y1 = y1;
         }
 
-        public (Vector2, Vector2) Range 
+        public (Vector2, Vector2) Range
             => (new Vector2(_x0, _y0), new Vector2(_x1, _y1));
-        public void Add(Vector2 p) {
-            if (p.X < _x0) _x0 = p.X;
-            if (p.X > _x1) _x1 = p.X;
+        public void Add(float x, float y) {
+            if (x < _x0) _x0 = x;
+            if (x > _x1) _x1 = x;
 
-            if (p.Y < _y0) _y0 = p.Y;
-            if (p.Y > _y1) _y1 = p.Y;
+            if (y < _y0) _y0 = y;
+            if (y > _y1) _y1 = y;
         }
 
         /// <summary>
