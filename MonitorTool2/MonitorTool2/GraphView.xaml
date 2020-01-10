@@ -26,15 +26,17 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" MinWidth="48"/>
             <ColumnDefinition/>
             <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
         <CommandBar Background="Transparent" 
                     DefaultLabelPosition="Right"
                     Margin="4"
-                    Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2">
+                    Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3">
             <AppBarButton Label="背景颜色"
                           BorderBrush="{x:Bind local:GraphicViewModel.Brushify(_viewModel.BackGround),Mode=OneWay}">
                 <AppBarButton.Icon>
@@ -54,21 +56,28 @@
                                 IsChecked="{x:Bind _viewModel.AxisEquals,Mode=TwoWay}"/>
             <AppBarSeparator/>
             <AppBarToggleButton Label="自动视野"
+                                IsEnabled="{x:Bind _viewModel.AutoRangeEnabled,Mode=OneWay}"
                                 IsChecked="{x:Bind _viewModel.AutoRange,Mode=TwoWay}">
                 <AppBarToggleButton.Icon>
                     <FontIcon Glyph="&#xE8B2;"/>
                 </AppBarToggleButton.Icon>
             </AppBarToggleButton>
-            <AppBarToggleButton Label="自动移动"
-                                IsChecked="{x:Bind _viewModel.AutoMove,Mode=TwoWay}">
-                <AppBarToggleButton.Icon>
-                    <FontIcon Glyph="&#xE759;"/>
-                </AppBarToggleButton.Icon>
-            </AppBarToggleButton>
-            <CommandBar.SecondaryCommands>
-                <AppBarToggleButton Label="调整宽度" IsChecked="True"/>
-                <AppBarToggleButton Label="调整高度" IsChecked="True"/>
-            </CommandBar.SecondaryCommands>
+            <AppBarButton Icon="Setting" Label="自动视野配置">
+                <AppBarButton.Flyout>
+                    <Flyout>
+                        <StackPanel>
+                            <TextBlock>自动宽度</TextBlock>
+                            <CheckBox IsChecked="{x:Bind _viewModel.AutoWidthAll,Mode=TwoWay}">全局</CheckBox>
+                            <CheckBox IsChecked="{x:Bind _viewModel.AutoWidthFrame,Mode=TwoWay}">末帧</CheckBox>
+                            <CheckBox IsChecked="{x:Bind _viewModel.AllowWidthShrink,Mode=TwoWay}">允许收缩</CheckBox>
+                            <TextBlock>自动高度</TextBlock>
+                            <CheckBox IsChecked="{x:Bind _viewModel.AutoHeightAll,Mode=TwoWay}">全局</CheckBox>
+                            <CheckBox IsChecked="{x:Bind _viewModel.AutoHeightFrame,Mode=TwoWay}">末帧</CheckBox>
+                            <CheckBox IsChecked="{x:Bind _viewModel.AllowHeightShrink,Mode=TwoWay}">允许收缩</CheckBox>
+                        </StackPanel>
+                    </Flyout>
+                </AppBarButton.Flyout>
+            </AppBarButton>
             <CommandBar.Content>
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{x:Bind _viewModel.Name}" 
@@ -85,16 +94,18 @@
                 </StackPanel>
             </CommandBar.Content>
         </CommandBar>
-        <win2d:CanvasControl x:Name="MainCanvas" 
-                             Draw="CanvasControl_Draw"
-                             Margin="2" 
-                             Grid.Row="1" Grid.RowSpan="3"
-                             Grid.Column="0" Grid.ColumnSpan="2"/>
+        <Border BorderBrush="LightGray"
+                BorderThickness="1,0,0,1"
+                Margin="2" 
+                Grid.Row="1" Grid.RowSpan="3"
+                Grid.Column="1" Grid.ColumnSpan="3">
+            <win2d:CanvasControl x:Name="MainCanvas" Draw="CanvasControl_Draw"/>
+        </Border>
         <ListView SelectionMode="None"
                   IsItemClickEnabled="False"
                   ItemsSource="{x:Bind _viewModel.Topics}"
                   HorizontalAlignment="Right"
-                  Margin="2" Grid.Row="1" Grid.Column="1">
+                  Margin="2" Grid.Row="1" Grid.Column="2">
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="local:TopicViewModel">
                     <StackPanel Orientation="Horizontal">
@@ -140,7 +151,7 @@
                         Foreground="LawnGreen"
                         HorizontalAlignment="Stretch"
                         Margin="2" MinWidth="96"
-                        Grid.Row="2" Grid.Column="1">
+                        Grid.Row="2" Grid.Column="2">
             <DropDownButton.Flyout>
                 <Flyout Opening="Flyout_Opening">
                     <ListView ItemsSource="{x:Bind _allTopics}"
@@ -148,5 +159,19 @@
                 </Flyout>
             </DropDownButton.Flyout>
         </DropDownButton>
+        <TextBlock Text="{x:Bind _viewModel.Y1Text,Mode=OneWay}"
+                   Grid.Row="1" Grid.Column="0"
+                   HorizontalAlignment="Right"/>
+        <TextBlock Text="{x:Bind _viewModel.Y0Text,Mode=OneWay}"
+                   Grid.Row="3" Grid.Column="0"
+                   HorizontalAlignment="Right"
+                   VerticalAlignment="Bottom"/>
+        <TextBlock Text="{x:Bind _viewModel.X0Text,Mode=OneWay}"
+                   Margin="0,0,0,4"
+                   Grid.Row="4" Grid.Column="1"/>
+        <TextBlock Text="{x:Bind _viewModel.X1Text,Mode=OneWay}"
+                   Margin="0,0,8,4"
+                   Grid.Row="4" Grid.Column="2"
+                   HorizontalAlignment="Right"/>
     </Grid>
 </UserControl>
