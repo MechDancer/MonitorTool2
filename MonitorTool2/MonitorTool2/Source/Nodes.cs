@@ -10,6 +10,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Numerics;
+using System.Threading.Tasks;
 using Windows.UI;
 using Windows.UI.Xaml.Media;
 
@@ -78,7 +79,7 @@ namespace MonitorTool2 {
             _group = group;
         }
         public void Receive(byte[] payload) {
-            using var stream = new MemoryStream(payload);
+            var stream = new MemoryStream(payload);
             string name;
             byte mode;
             try {
@@ -127,15 +128,16 @@ namespace MonitorTool2 {
             Debug.Assert(!frame);
             if (!_topics.TryGetValue(name, out var accumulator)) {
                 accumulator = new Accumulator<Vector2>(name, dir);
-                _topics.Add(name, accumulator);
                 Topics.Add(accumulator);
+                _topics.Add(name, accumulator);
                 return;
             } else if (accumulator.State == TopicState.None)
                 return;
-            accumulator.Receive(
-                new Vector2(
-                    (float)(DateTime.Now - _t0).TotalMilliseconds,
-                    new NetworkDataReader(stream).ReadFloat()));
+            Task.Run(() => {
+                accumulator.Receive(new Vector2(
+                 (float)(DateTime.Now - _t0).TotalMilliseconds,
+                 new NetworkDataReader(stream).ReadFloat()));
+            });
         }
     }
 
@@ -163,7 +165,7 @@ namespace MonitorTool2 {
                     return;
                 } else if (frameNode.State == TopicState.None)
                     return;
-                frameNode.Receive(Parse(dir, stream));
+                Task.Run(() => frameNode.Receive(Parse(dir, stream)));
             } else {
                 if (!_accumulators.TryGetValue(name, out var accumulator)) {
                     accumulator = new Accumulator<Vector3>(name, dir);
@@ -172,7 +174,7 @@ namespace MonitorTool2 {
                     return;
                 } else if (accumulator.State == TopicState.None)
                     return;
-                accumulator.Receive(Parse(dir, stream));
+                Task.Run(() => accumulator.Receive(Parse(dir, stream)));
             }
         }
         private static Vector3[] Parse(bool dir, MemoryStream stream) {
@@ -215,7 +217,7 @@ namespace MonitorTool2 {
             Topics = new ObservableCollection<ITopicNode>();
         }
         public override void Receive(string name, bool dir, bool frame, MemoryStream stream) {
-            
+
             if (frame) {
                 if (!_frames.TryGetValue(name, out var frameNode)) {
                     frameNode = new Frame<(Vector3, Vector3)>(name, dir);
@@ -224,7 +226,7 @@ namespace MonitorTool2 {
                     return;
                 } else if (frameNode.State == TopicState.None)
                     return;
-                frameNode.Receive(Parse(dir, stream));
+                Task.Run(() => frameNode.Receive(Parse(dir, stream)));
             } else {
                 if (!_accumulators.TryGetValue(name, out var accumulator)) {
                     accumulator = new Accumulator<(Vector3, Vector3)>(name, dir);
@@ -233,7 +235,7 @@ namespace MonitorTool2 {
                     return;
                 } else if (accumulator.State == TopicState.None)
                     return;
-                accumulator.Receive(Parse(dir, stream));
+                Task.Run(() => accumulator.Receive(Parse(dir, stream)));
             }
         }
         private static (Vector3, Vector3)[] Parse(bool dir, MemoryStream stream) {
@@ -344,7 +346,7 @@ namespace MonitorTool2 {
         protected FrameNodeBase(string name, bool dir)
             => Name = $"[{(dir ? "位姿" : "位置")}][帧]{name}";
         protected void Paint() {
-            foreach(var observer in _observers)
+            foreach (var observer in _observers)
                 observer.Paint();
         }
 
@@ -378,26 +380,31 @@ namespace MonitorTool2 {
         public override IEnumerable Data => _data;
         public Accumulator(string name, bool dir) : base(name, dir) { }
         public void Receive(params T[] data) {
-            if (data.Length >= Capacity) {
-                _data.Clear();
-                _data.AddRange(data.Take(Capacity));
-            } else {
-                (_data.Count + data.Length - Capacity)
-                    .AcceptIf(it => it > 0)
-                    ?.Also(it => _data.RemoveRange(0, Math.Min(_data.Count, it)));
-                _data.AddRange(data);
+            lock (_data) {
+                if (data.Length >= Capacity) {
+                    _data.Clear();
+                    _data.AddRange(data.Take(Capacity));
+                } else {
+                    (_data.Count + data.Length - Capacity)
+                        .AcceptIf(it => it > 0)
+                        ?.Also(it => _data.RemoveRange(0, Math.Min(_data.Count, it)));
+                    _data.AddRange(data);
+                }
             }
             Paint();
         }
     }
 
     public class Frame<T> : FrameNodeBase where T : struct {
-        private IReadOnlyList<T> _data = new List<T>();
+        private readonly List<T> _data = new List<T>();
 
         public override IEnumerable Data => _data;
         public Frame(string name, bool dir) : base(name, dir) { }
         public void Receive(params T[] data) {
-            _data = data;
+            lock (_data) {
+                _data.Clear();
+                _data.AddRange(data);
+            }
             Paint();
         }
     }

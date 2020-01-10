@@ -15,6 +15,8 @@ namespace MonitorTool2 {
     /// 画图控件
     /// </summary>
     public sealed partial class GraphView {
+        public float BlankBorderWidth { get; set; } = 10;
+
         private GraphicViewModel _viewModel { get; }
         private ObservableCollection<TopicStub> _allTopics { get; }
             = new ObservableCollection<TopicStub>();
@@ -26,55 +28,57 @@ namespace MonitorTool2 {
         }
 
         private void CanvasControl_Draw(CanvasControl sender, CanvasDrawEventArgs args) {
+            var actives = _viewModel.Topics.Where(it => it.Active).ToList();
+            if (actives.None()) return;
             // 工作范围
-            var outlineAll = _viewModel.AutoRange ? new Outline() : (Outline?)null;
-            var outlineFrame = _viewModel.AutoMove ? new Outline() : (Outline?)null;
+            var outlineAll = _viewModel.AutoRange ? Outline.NullInit() : (Outline?)null;
+            var outlineFrame = _viewModel.AutoMove ? Outline.NullInit() : (Outline?)null;
             // 从话题缓存抄录所有点，同时确定工作范围
             IEnumerable<List<Vector3>> Split(TopicViewModel topic) {
-                // 取出迭代器，没有任何点则直接退出
-                var itor = topic.Data.OfType<Vector3>().GetEnumerator();
-                if (!itor.MoveNext()) yield break;
-                // 初始化末有效点存储
-                var last = (Vector3?)null;
-                // 否则按分隔符划分数据
-                IEnumerable<Vector3> Accumulate() {
-                    while (true) {
-                        var p = itor.Current;
-                        // 对于分隔符，由外部控制迭代器移动
-                        if (float.IsNaN(p.X)) yield break;
-                        // 非背景模式下，控制自动范围
-                        if (!topic.Background) {
-                            if (outlineAll.HasValue)
-                                outlineAll.Value.Add(p.X, p.Y);
-                            else if (outlineFrame.HasValue && topic.FrameMode)
-                                outlineFrame.Value.Add(p.X, p.Y);
+                lock (topic.Data) {
+                    // 取出迭代器，没有任何点则直接退出
+                    var itor = topic.Data.OfType<Vector3>().GetEnumerator();
+                    if (!itor.MoveNext()) yield break;
+                    // 初始化末有效点存储
+                    var last = (Vector2?)null;
+                    // 否则按分隔符划分数据
+                    IEnumerable<Vector3> Accumulate() {
+                        while (true) {
+                            var p = itor.Current;
+                            last = new Vector2(p.X, p.Y);
+                            // 对于分隔符，由外部控制迭代器移动
+                            if (float.IsNaN(p.X)) yield break;
+                            // 非背景模式下，控制自动范围
+                            if (!topic.Background) {
+                                if (outlineAll.HasValue)
+                                    outlineAll += last;
+                                else if (outlineFrame.HasValue && topic.FrameMode)
+                                    outlineFrame += last;
+                            }
+                            // 存储最末有效点
+                            yield return p;
+                            // 迭代器移动，失败直接退出
+                            if (!itor.MoveNext()) yield break;
                         }
-                        // 存储最末有效点
-                        last = p;
-                        yield return p;
-                        // 迭代器移动，失败直接退出
-                        if (!itor.MoveNext()) yield break;
                     }
-                }
-                // 执行划分
-                while (true) {
-                    var group = Accumulate().ToList();
-                    if (group.Any()) yield return group;
-                    // 迭代器移动，失败直接退出
-                    if (!itor.MoveNext()) {
-                        if (!topic.Background // 背景模式，跳过
-                         && !topic.FrameMode  // 帧模式，所有有效点已经计算过
-                         && !last.HasValue) { // 不存在有效点，跳过
-                            var p = last.Value;
-                            outlineFrame?.Add(p.X, p.Y);
+                    // 执行划分
+                    while (true) {
+                        var group = Accumulate().ToList();
+                        if (group.Any()) yield return group;
+                        // 迭代器移动，失败直接退出
+                        if (!itor.MoveNext()) {
+                            if (!topic.Background // 背景模式，跳过
+                             && !topic.FrameMode  // 帧模式，所有有效点已经计算过
+                             && !last.HasValue    // 不存在有效点，跳过
+                             && outlineFrame.HasValue
+                           ) outlineFrame += last;
+                            yield break;
                         }
-                        yield break;
                     }
                 }
             }
             // 执行抄录
-            var topics = (from topic in _viewModel.Topics
-                          where topic.Active
+            var topics = (from topic in actives
                           let data = Split(topic).ToList()
                           where data.Any()
                           select Tuple.Create(topic.Color, data)
@@ -84,9 +88,9 @@ namespace MonitorTool2 {
             // 笔刷
             var brush = args.DrawingSession;
             // 画布尺寸
-            var width = (float)sender.ActualWidth;
-            var height = (float)sender.ActualHeight;
-            var currentOutline = _viewModel.Outline.Tile(width, height); 
+            var width = (float)sender.ActualWidth - BlankBorderWidth;
+            var height = (float)sender.ActualHeight - BlankBorderWidth;
+            var currentOutline = _viewModel.Outline.Tile(width, height);
             // 自动范围
             if (outlineAll.HasValue) {
                 // 范围太小？
@@ -101,10 +105,10 @@ namespace MonitorTool2 {
                         brush.DrawCircle(c, 1, color, 2);
                     return;
                 }
-                _viewModel.Outline = currentOutline;
+                _viewModel.Outline = outlineAll.Value;
             }
             // 自动移动
-            if (outlineFrame.HasValue) {
+            else if (outlineFrame.HasValue) {
                 float x0, y0, x1, y1,
                       w0, h0, w1, h1;
                 var (min0, max0) = currentOutline.Range;
@@ -152,9 +156,20 @@ namespace MonitorTool2 {
                     }
                 }
                 // 更新范围
-                _viewModel.Outline = new Outline(x0, y0, x1, y1).Tile(width,height);
+                _viewModel.Outline = new Outline(x0, y0, x1, y1).Tile(width, height);
             }
             //TODO else 其他更新范围方式
+            var (lb, rt) = _viewModel.Outline.Range;
+            var k = width / (rt.X - lb.X);
+            Vector2 Transform(Vector2 s) => (k * (s - lb)).Let(it => new Vector2(BlankBorderWidth + it.X, width - BlankBorderWidth - it.Y));
+            foreach (var (color, topic) in topics) {
+                foreach (var group in topic) {
+                    foreach (var pose in group) {
+                        var p = Transform(new Vector2(pose.X, pose.Y));
+                        brush.DrawCircle(p, 1, color, 2);
+                    }
+                }
+            }
         }
         private void TopicListSelectionChanged(object sender, SelectionChangedEventArgs e) {
             e.AddedItems
@@ -179,12 +194,9 @@ namespace MonitorTool2 {
     }
 
     internal struct Outline {
-        private float _x0, _x1, _y0, _y1;
+        private readonly float _x0, _x1, _y0, _y1;
 
-        public Outline(float x0 = float.PositiveInfinity,
-                       float y0 = float.PositiveInfinity,
-                       float x1 = float.NegativeInfinity,
-                       float y1 = float.NegativeInfinity) {
+        public Outline(float x0, float y0, float x1, float y1) {
             _x0 = x0;
             _y0 = y0;
             _x1 = x1;
@@ -195,13 +207,6 @@ namespace MonitorTool2 {
 
         public (Vector2, Vector2) Range
             => (new Vector2(_x0, _y0), new Vector2(_x1, _y1));
-        public void Add(float x, float y) {
-            if (x < _x0) _x0 = x;
-            if (x > _x1) _x1 = x;
-
-            if (y < _y0) _y0 = y;
-            if (y > _y1) _y1 = y;
-        }
 
         /// <summary>
         /// 范围是否过小
@@ -239,6 +244,17 @@ namespace MonitorTool2 {
                 return new Outline(_x0 - e, _y0, _x1 + e, _y1);
             }
         }
+
+        public static Outline NullInit() =>
+            new Outline(float.PositiveInfinity,
+                        float.PositiveInfinity,
+                        float.NegativeInfinity,
+                        float.NegativeInfinity);
+        public static Outline operator +(Outline src, Vector2 p)
+            => new Outline(Math.Min(src._x0, p.X),
+                           Math.Min(src._y0, p.Y),
+                           Math.Max(src._x1, p.X),
+                           Math.Max(src._y1, p.Y));
     }
 
     /// <summary>
