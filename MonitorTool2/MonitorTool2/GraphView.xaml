@@ -78,6 +78,9 @@
                     </Flyout>
                 </AppBarButton.Flyout>
             </AppBarButton>
+            <CommandBar.SecondaryCommands>
+                <AppBarButton/>
+            </CommandBar.SecondaryCommands>
             <CommandBar.Content>
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{x:Bind _viewModel.Name}" 

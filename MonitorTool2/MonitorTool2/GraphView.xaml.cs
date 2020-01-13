@@ -1,4 +1,5 @@
 ﻿using MechDancer.Common;
+using Microsoft.Graphics.Canvas.Text;
 using Microsoft.Graphics.Canvas.UI.Xaml;
 using System;
 using System.Collections;
@@ -16,6 +17,8 @@ namespace MonitorTool2 {
     /// 画图控件
     /// </summary>
     public sealed partial class GraphView {
+        private static readonly CanvasTextFormat TextFormat 
+            = new CanvasTextFormat { FontSize = 16 };
         public float BlankBorderWidth { get; set; } = 8;
 
         private List<TopicMemory> _memory = new List<TopicMemory>();
@@ -191,8 +194,8 @@ namespace MonitorTool2 {
                 brush.DrawLine(new Vector2(0, y0), new Vector2(canvasW, y0), Colors.White);
                 brush.DrawLine(new Vector2(0, y0 + 1), new Vector2(canvasW, y0 + 1), Colors.Black);
                 brush.DrawLine(new Vector2(x0 + 1, 0), new Vector2(x0 + 1, canvasH), Colors.Black);
-                brush.DrawText($"{p.X.ToString("0.000")}, {p.Y.ToString("0.000")}", x0 + 1, y0 - 23, Colors.Black);
-                brush.DrawText($"{p.X.ToString("0.000")}, {p.Y.ToString("0.000")}", x0, y0 - 24, Colors.White);
+                brush.DrawText($"{p.X.ToString("0.000")}, {p.Y.ToString("0.000")}", x0 + 1, y0 - 15, Colors.Black, TextFormat);
+                brush.DrawText($"{p.X.ToString("0.000")}, {p.Y.ToString("0.000")}", x0, y0 - 16, Colors.White, TextFormat);
             }
         }
         private void TopicListSelectionChanged(object sender, SelectionChangedEventArgs e) {
