@@ -37,19 +37,6 @@
                     DefaultLabelPosition="Right"
                     Margin="4"
                     Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3">
-            <AppBarButton Label="背景颜色"
-                          BorderBrush="{x:Bind local:GraphicViewModel.Brushify(_viewModel.BackGround),Mode=OneWay}">
-                <AppBarButton.Icon>
-                    <FontIcon Glyph="&#xE790;"/>
-                </AppBarButton.Icon>
-                <AppBarButton.Flyout>
-                    <Flyout>
-                        <ColorPicker Color="{x:Bind _viewModel.BackGround,Mode=TwoWay}"
-                                     Style="{StaticResource ClearColorPicker}"/>
-                    </Flyout>
-                </AppBarButton.Flyout>
-            </AppBarButton>
-            <AppBarSeparator/>
             <AppBarToggleButton Icon="Pin" Label="锁定"
                                 IsChecked="{x:Bind _viewModel.IsLocked,Mode=TwoWay}"/>
             <AppBarToggleButton Icon="Stop" Label="维持纵横比"
@@ -78,6 +65,19 @@
                     </Flyout>
                 </AppBarButton.Flyout>
             </AppBarButton>
+            <AppBarSeparator/>
+            <AppBarButton Label="背景颜色"
+                          BorderBrush="{x:Bind local:GraphicViewModel.Brushify(_viewModel.BackGround),Mode=OneWay}">
+                <AppBarButton.Icon>
+                    <FontIcon Glyph="&#xE790;"/>
+                </AppBarButton.Icon>
+                <AppBarButton.Flyout>
+                    <Flyout>
+                        <ColorPicker Color="{x:Bind _viewModel.BackGround,Mode=TwoWay}"
+                                     Style="{StaticResource ClearColorPicker}"/>
+                    </Flyout>
+                </AppBarButton.Flyout>
+            </AppBarButton>
             <CommandBar.Content>
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{x:Bind _viewModel.Name}" 
@@ -99,7 +99,10 @@
                 Margin="2" 
                 Grid.Row="1" Grid.RowSpan="3"
                 Grid.Column="1" Grid.ColumnSpan="3">
-            <win2d:CanvasControl x:Name="MainCanvas" Draw="CanvasControl_Draw"/>
+            <win2d:CanvasControl x:Name="MainCanvas" Draw="CanvasControl_Draw"
+                                 PointerMoved="MainCanvas_PointerMoved"
+                                 PointerExited="MainCanvas_PointerExited"
+                                 PointerWheelChanged="MainCanvas_PointerWheelChanged"/>
         </Border>
         <ListView SelectionMode="None"
                   IsItemClickEnabled="False"
@@ -160,7 +163,7 @@
             </DropDownButton.Flyout>
         </DropDownButton>
         <TextBlock Text="{x:Bind _viewModel.Y1Text,Mode=OneWay}"
-                   Grid.Row="1" Grid.Column="0"
+                   Grid.Row="1" Grid.Column="0" Grid.RowSpan="2"
                    HorizontalAlignment="Right"/>
         <TextBlock Text="{x:Bind _viewModel.Y0Text,Mode=OneWay}"
                    Grid.Row="3" Grid.Column="0"

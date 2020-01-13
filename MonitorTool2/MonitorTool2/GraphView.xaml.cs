@@ -8,6 +8,7 @@ using System.Linq;
 using System.Numerics;
 using Windows.UI;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 
 namespace MonitorTool2 {
@@ -15,11 +16,10 @@ namespace MonitorTool2 {
     /// 画图控件
     /// </summary>
     public sealed partial class GraphView {
-        public float BlankBorderWidth { get; set; } = 10;
+        public float BlankBorderWidth { get; set; } = 8;
 
-        private List<Tuple<Color, List<List<Vector3>>>> _memory
-            = new List<Tuple<Color, List<List<Vector3>>>>();
-
+        private List<TopicMemory> _memory = new List<TopicMemory>();
+        private Vector2? _pointer = null;
         private GraphicViewModel _viewModel { get; }
         private ObservableCollection<TopicStub> _allTopics { get; }
             = new ObservableCollection<TopicStub>();
@@ -31,12 +31,18 @@ namespace MonitorTool2 {
         }
 
         private void CanvasControl_Draw(CanvasControl sender, CanvasDrawEventArgs args) {
+            // 笔刷
+            var brush = args.DrawingSession;
+            // 画布尺寸
+            var canvasW = (float)sender.ActualWidth;
+            var canvasH = (float)sender.ActualHeight;
             // 工作范围
             var auto = _viewModel.AutoRange;
             var areaX = auto && _viewModel.AutoWidthAll ? Area.Init() : (Area?)null;
             var areaY = auto && _viewModel.AutoHeightAll ? Area.Init() : (Area?)null;
             var areaXFrame = auto && _viewModel.AutoWidthFrame ? Area.Init() : (Area?)null;
             var areaYFrame = auto && _viewModel.AutoHeightFrame ? Area.Init() : (Area?)null;
+            // 刷新工作范围
             if (!_viewModel.IsLocked) {
                 // 筛选活跃话题
                 var actives = _viewModel.Topics.Where(it => it.Active).ToList();
@@ -93,16 +99,25 @@ namespace MonitorTool2 {
                 _memory = (from topic in actives
                            let data = Split(topic).ToList()
                            where data.Any()
-                           select Tuple.Create(topic.Color, data)
+                           select new TopicMemory(topic.Color, topic.Connect, data)
                           ).ToList();
             }
             // 没有任何点直接退出
-            if (_memory.None()) return;
-            // 笔刷
-            var brush = args.DrawingSession;
-            // 画布尺寸
-            var width = (float)sender.ActualWidth - BlankBorderWidth;
-            var height = (float)sender.ActualHeight - BlankBorderWidth;
+            if (_memory.None()) {
+                // 绘制标尺
+                if (_pointer.HasValue) {
+                    var x0 = _pointer.Value.X;
+                    var y0 = _pointer.Value.Y;
+                    brush.DrawLine(new Vector2(x0, 0), new Vector2(x0, canvasH), Colors.White);
+                    brush.DrawLine(new Vector2(0, y0), new Vector2(canvasW, y0), Colors.White);
+                    brush.DrawLine(new Vector2(0, y0 + 1), new Vector2(canvasW, y0 + 1), Colors.Black);
+                    brush.DrawLine(new Vector2(x0 + 1, 0), new Vector2(x0 + 1, canvasH), Colors.Black);
+                }
+                return;
+            }
+            // 显示范围
+            var width = canvasW - 2 * BlankBorderWidth;
+            var height = canvasH - 2 * BlankBorderWidth;
             // 当前绘图范围
             var currentX = _viewModel.RangeX;
             var currentY = _viewModel.RangeY;
@@ -129,27 +144,55 @@ namespace MonitorTool2 {
                 areaY?.Determine(currentY, _viewModel.AllowHeightShrink)
              ?? areaYFrame?.Determine(currentY, _viewModel.AllowHeightShrink)
              ?? currentY;
-            //TODO else 其他更新范围方式
+            // 根据范围计算变换
             var c0 = new Vector2(_viewModel.RangeX.C,
                                  _viewModel.RangeY.C);
-            var c1 = new Vector2(width, height) / 2;
+            var c1 = new Vector2(canvasW, canvasH) / 2;
             var kx = width / _viewModel.RangeX.L;
             var ky = height / _viewModel.RangeY.L;
-            Func<Vector2, Vector2> transform;
+            Func<Vector2, Vector2> transform, inverse;
+            Vector2 mirror(Vector2 p) => new Vector2(p.X, canvasH - p.Y);
             if (_viewModel.AxisEquals) {
                 var k = Math.Min(kx, ky);
-                transform = p => k * (p - c0) + c1;
+                transform = p => mirror(k * (p - c0) + c1);
+                inverse = p => (mirror(p) - c1) / k + c0;
             } else {
                 var k = new Vector2(kx, ky);
-                transform = p => k * (p - c0) + c1;
+                transform = p => mirror(k * (p - c0) + c1);
+                inverse = p => (mirror(p) - c1) / k + c0;
             }
-            foreach (var (color, topic) in _memory) {
+            // 在缓存上迭代
+            foreach (var (color, connect, topic) in _memory) {
                 foreach (var group in topic) {
-                    foreach (var pose in group) {
-                        var p = transform(new Vector2(pose.X, pose.Y));
-                        brush.DrawCircle(p.X, height - p.Y, 1, color, 2);
+                    var iter = group.GetEnumerator();
+                    // 缓存一点
+                    var current = transform(new Vector2(iter.Current.X, iter.Current.Y));
+                    while (iter.MoveNext()) {
+                        var pose = iter.Current;
+                        // 更新缓存
+                        var last = current;
+                        current = transform(new Vector2(pose.X, pose.Y));
+                        // 画线
+                        brush.DrawCircle(current.X, current.Y, 1, color);
+                        // 画点
+                        if (connect) brush.DrawLine(last, current, color);
+                        // 画姿态
+                        if (!float.IsNaN(pose.Z))
+                            brush.DrawLine(current, current + new Vector2(MathF.Cos(pose.Z), MathF.Sin(pose.Z)) * 10, color);
                     }
                 }
+            }
+            // 绘制标尺
+            if (_pointer.HasValue) {
+                var x0 = _pointer.Value.X;
+                var y0 = _pointer.Value.Y;
+                var p = inverse(_pointer.Value);
+                brush.DrawLine(new Vector2(x0, 0), new Vector2(x0, canvasH), Colors.White);
+                brush.DrawLine(new Vector2(0, y0), new Vector2(canvasW, y0), Colors.White);
+                brush.DrawLine(new Vector2(0, y0 + 1), new Vector2(canvasW, y0 + 1), Colors.Black);
+                brush.DrawLine(new Vector2(x0 + 1, 0), new Vector2(x0 + 1, canvasH), Colors.Black);
+                brush.DrawText($"{p.X.ToString("0.000")}, {p.Y.ToString("0.000")}", x0 + 1, y0 - 23, Colors.Black);
+                brush.DrawText($"{p.X.ToString("0.000")}, {p.Y.ToString("0.000")}", x0, y0 - 24, Colors.White);
             }
         }
         private void TopicListSelectionChanged(object sender, SelectionChangedEventArgs e) {
@@ -172,6 +215,37 @@ namespace MonitorTool2 {
                                   select stub)
                 _allTopics.Add(topic);
         }
+        private void MainCanvas_PointerWheelChanged(object sender, PointerRoutedEventArgs e) {
+            _viewModel.AutoRange = false;
+
+            var canvas = (CanvasControl)sender;
+            var pointer = e.GetCurrentPoint(canvas);
+
+            var delta = pointer.Properties.MouseWheelDelta;
+            if (delta == 0) return;
+            var k = 1 + delta / 480f;
+
+            var w = (float)canvas.ActualWidth - BlankBorderWidth;
+            var h = (float)canvas.ActualHeight - BlankBorderWidth;
+            var px = (float)pointer.Position.X - BlankBorderWidth;
+            var py = (float)pointer.Position.Y - BlankBorderWidth;
+
+            _viewModel.RangeX = _viewModel.RangeX.Let(r => r.Affine(k, r.T0 + r.L * px / w));
+            _viewModel.RangeY = _viewModel.RangeY.Let(r => r.Affine(k, r.T0 + r.L * (1 - py / h)));
+
+            MainCanvas.Invalidate();
+        }
+        private void MainCanvas_PointerMoved(object sender, PointerRoutedEventArgs e) {
+            var canvas = (CanvasControl)sender;
+            var pointer = e.GetCurrentPoint(canvas);
+            _pointer = new Vector2((float)pointer.Position.X, (float)pointer.Position.Y);
+            MainCanvas.Invalidate();
+        }
+
+        private void MainCanvas_PointerExited(object sender, PointerRoutedEventArgs e) {
+            _pointer = null;
+            MainCanvas.Invalidate();
+        }
     }
 
     internal struct Area {
@@ -193,10 +267,7 @@ namespace MonitorTool2 {
         /// <summary>
         /// 更新范围
         /// </summary>
-        /// <param name="current">
-        /// 当前范围
-        /// 若要采取不居中模式，应当将当前范围同步到当前宽高比
-        /// </param>
+        /// <param name="current">当前范围</param>
         /// <param name="allowShrink">允许收缩</param>
         /// <returns>最终显示范围</returns>
         public Area Determine(
@@ -215,6 +286,9 @@ namespace MonitorTool2 {
                  ? new Area(T1 - cl, T1)
                  : current;
         }
+
+        public Area Affine(float k, float b) 
+            => new Area(k * (T0 - b) + b, k * (T1 - b) + b);
     }
 
     /// <summary>
@@ -238,10 +312,10 @@ namespace MonitorTool2 {
         private Area _rangeX, _rangeY;
 
         private void ConfigChanged(bool value, Action mutex) {
-            _canvas.Invalidate();
             Notify(nameof(AutoRangeEnabled));
             if (value) mutex();
             else if (!AutoRangeEnabled) AutoRange = false;
+            _canvas.Invalidate();
         }
 
         public GraphicViewModel(string name, byte dim) {
@@ -261,20 +335,27 @@ namespace MonitorTool2 {
         }
         public bool IsLocked {
             get => _locked;
-            set => SetProperty(ref _locked, value);
+            set {
+                if (SetProperty(ref _locked, value))
+                    ConfigChanged(!value, () => { });
+            }
         }
         public bool AxisEquals {
             get => _axisEquals;
             set => SetProperty(ref _axisEquals, value);
         }
         public bool AutoRangeEnabled
-            => _autoWidthAll
+            => !IsLocked
+            && (_autoWidthAll
             || _autoWidthFrame
             || _autoHeightAll
-            || _autoHeightFrame;
+            || _autoHeightFrame);
         public bool AutoRange {
             get => _autoRange;
-            set => SetProperty(ref _autoRange, value);
+            set {
+                if (SetProperty(ref _autoRange, value))
+                    _canvas.Invalidate();
+            }
         }
         public bool AutoWidthAll {
             get => _autoWidthAll;
@@ -364,6 +445,23 @@ namespace MonitorTool2 {
             Core = core;
         }
         public override string ToString() => $"{Remote}-{Core.Name}";
+    }
+
+    public class TopicMemory {
+        public Color Color { get; }
+        public bool Connect { get; }
+        public List<List<Vector3>> Data { get; }
+
+        public TopicMemory(Color color, bool connect, List<List<Vector3>> data) {
+            Color = color;
+            Connect = connect;
+            Data = data;
+        }
+        public void Deconstruct(out Color color, out bool connect, out List<List<Vector3>> data) {
+            color = Color;
+            connect = Connect;
+            data = Data;
+        }
     }
 
     /// <summary>
