@@ -103,6 +103,7 @@
                 Grid.Row="1" Grid.RowSpan="3"
                 Grid.Column="1" Grid.ColumnSpan="3">
             <win2d:CanvasControl x:Name="MainCanvas" Draw="CanvasControl_Draw"
+                                 PointerReleased="MainCanvas_PointerMoved"
                                  PointerMoved="MainCanvas_PointerMoved"
                                  PointerExited="MainCanvas_PointerExited"
                                  PointerWheelChanged="MainCanvas_PointerWheelChanged"/>

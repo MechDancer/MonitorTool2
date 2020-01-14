@@ -18,12 +18,12 @@ namespace MonitorTool2 {
     /// 画图控件
     /// </summary>
     public sealed partial class GraphView {
-        private static readonly CanvasTextFormat TextFormat 
+        private static readonly CanvasTextFormat TextFormat
             = new CanvasTextFormat { FontSize = 16 };
         public float BlankBorderWidth { get; set; } = 8;
 
         private List<TopicMemory> _memory = new List<TopicMemory>();
-        private Vector2? _pointer = null;
+        private Vector2? _pointer = null, _pressed = null, _released = null;
         private GraphicViewModel _viewModel { get; }
         private ObservableCollection<TopicStub> _allTopics { get; }
             = new ObservableCollection<TopicStub>();
@@ -41,7 +41,7 @@ namespace MonitorTool2 {
             var canvasW = (float)sender.ActualWidth;
             var canvasH = (float)sender.ActualHeight;
             // 工作范围
-            var auto = _viewModel.AutoRange;
+            var auto = _viewModel.AutoRange && !_released.HasValue;
             var areaX = auto && _viewModel.AutoWidthAll ? Area.Init() : (Area?)null;
             var areaY = auto && _viewModel.AutoHeightAll ? Area.Init() : (Area?)null;
             var areaXFrame = auto && _viewModel.AutoWidthFrame ? Area.Init() : (Area?)null;
@@ -112,79 +112,68 @@ namespace MonitorTool2 {
                 if (_pointer.HasValue) {
                     var x0 = _pointer.Value.X;
                     var y0 = _pointer.Value.Y;
-                    brush.DrawLine(new Vector2(x0, 0), new Vector2(x0, canvasH), Colors.White);
-                    brush.DrawLine(new Vector2(0, y0), new Vector2(canvasW, y0), Colors.White);
                     brush.DrawLine(new Vector2(0, y0 + 1), new Vector2(canvasW, y0 + 1), Colors.Black);
                     brush.DrawLine(new Vector2(x0 + 1, 0), new Vector2(x0 + 1, canvasH), Colors.Black);
+                    brush.DrawLine(new Vector2(x0, 0), new Vector2(x0, canvasH), Colors.White);
+                    brush.DrawLine(new Vector2(0, y0), new Vector2(canvasW, y0), Colors.White);
+                    if (_pressed.HasValue) {
+                        var x1 = _pressed.Value.X;
+                        var y1 = _pressed.Value.Y;
+                        brush.DrawLine(new Vector2(x0, y1 + 1), new Vector2(x1, y1 + 1), Colors.Black);
+                        brush.DrawLine(new Vector2(x1 + 1, y0), new Vector2(x1 + 1, y1), Colors.Black);
+                        brush.DrawLine(new Vector2(x0, y1), new Vector2(x1, y1), Colors.White);
+                        brush.DrawLine(new Vector2(x1, y0), new Vector2(x1, y1), Colors.White);
+                        if (_released.HasValue) _pressed = _released = null;
+                    }
                 }
                 return;
             }
             // 显示范围
             var width = canvasW - 2 * BlankBorderWidth;
             var height = canvasH - 2 * BlankBorderWidth;
-            // 当前绘图范围
-            var currentX = _viewModel.RangeX;
-            var currentY = _viewModel.RangeY;
-            // 如果有等轴性，计算实际显示范围
-            if (_viewModel.AxisEquals) {
-                var xl = currentX.L;
-                var yl = currentY.L;
-                var currentK = xl / yl;
-                var actualK = width / height;
-                if (actualK > currentK) {
-                    var e = (yl * actualK - xl) / 2;
-                    currentX = new Area(currentX.T0 - e, currentX.T1 + e);
-                } else {
-                    var e = (xl / actualK - yl) / 2;
-                    currentY = new Area(currentY.T0 - e, currentY.T1 + e);
-                }
+            if (areaX.HasValue || areaXFrame.HasValue
+             || areaY.HasValue || areaYFrame.HasValue) {
+                _viewModel.CurrentRange(width, height, out var currentX, out var currentY);
+                // 更新范围
+                _viewModel.RangeX =
+                    areaX?.Determine(currentX, _viewModel.AllowWidthShrink)
+                 ?? areaXFrame?.Determine(currentX, _viewModel.AllowWidthShrink)
+                 ?? currentX;
+                _viewModel.RangeY =
+                    areaY?.Determine(currentY, _viewModel.AllowHeightShrink)
+                 ?? areaYFrame?.Determine(currentY, _viewModel.AllowHeightShrink)
+                 ?? currentY;
+            } else if (_released.HasValue) {
+                _viewModel.AutoRange = false;
+                _viewModel.Transform(canvasW, canvasH, out _, out var tf);
+                var a = tf(_pressed.Value);
+                var b = tf(_released.Value);
+                _viewModel.CurrentRange(width, height, out var currentX, out var currentY);
+                _viewModel.RangeX = Area.Auto(a.X, b.X).Determine(currentX, _viewModel.AllowWidthShrink);
+                _viewModel.RangeY = Area.Auto(a.Y, b.Y).Determine(currentY, _viewModel.AllowHeightShrink);
+                _pressed = _released = null;
             }
-            // 更新范围
-            _viewModel.RangeX =
-                areaX?.Determine(currentX, _viewModel.AllowWidthShrink)
-             ?? areaXFrame?.Determine(currentX, _viewModel.AllowWidthShrink)
-             ?? currentX;
-            _viewModel.RangeY =
-                areaY?.Determine(currentY, _viewModel.AllowHeightShrink)
-             ?? areaYFrame?.Determine(currentY, _viewModel.AllowHeightShrink)
-             ?? currentY;
             // 根据范围计算变换
-            var c0 = new Vector2(_viewModel.RangeX.C,
-                                 _viewModel.RangeY.C);
-            var c1 = new Vector2(canvasW, canvasH) / 2;
-            var kx = width / _viewModel.RangeX.L;
-            var ky = height / _viewModel.RangeY.L;
-            Func<Vector2, Vector2> transform, inverse;
-            Vector2 mirror(Vector2 p) => new Vector2(p.X, canvasH - p.Y);
-            if (_viewModel.AxisEquals) {
-                var k = Math.Min(kx, ky);
-                transform = p => mirror(k * (p - c0) + c1);
-                inverse = p => (mirror(p) - c1) / k + c0;
-            } else {
-                var k = new Vector2(kx, ky);
-                transform = p => mirror(k * (p - c0) + c1);
-                inverse = p => (mirror(p) - c1) / k + c0;
-            }
+            _viewModel.Transform(canvasW, canvasH, out var transform, out var inverse);
             // 在缓存上迭代
             foreach (var (color, connect, topic) in _memory) {
                 foreach (var group in topic) {
                     Vector2 current = default;
                     var notFirst = false;
-                    foreach(var pose in group) {
+                    foreach (var pose in group) {
                         // 更新缓存
                         var last = current;
                         current = transform(new Vector2(pose.X, pose.Y));
                         // 画点
                         brush.DrawCircle(current.X, current.Y, 1, color);
                         // 画线
-                        if (notFirst && connect) 
+                        if (notFirst && connect)
                             brush.DrawLine(last, current, color);
-                        else 
+                        else
                             notFirst = true;
                         // 画姿态
                         if (!float.IsNaN(pose.Z))
                             brush.DrawLine(current, current + new Vector2(MathF.Cos(pose.Z), -MathF.Sin(pose.Z)) * 10, color);
-
                     }
                 }
             }
@@ -193,12 +182,20 @@ namespace MonitorTool2 {
                 var x0 = _pointer.Value.X;
                 var y0 = _pointer.Value.Y;
                 var p = inverse(_pointer.Value);
-                brush.DrawLine(new Vector2(x0, 0), new Vector2(x0, canvasH), Colors.White);
-                brush.DrawLine(new Vector2(0, y0), new Vector2(canvasW, y0), Colors.White);
                 brush.DrawLine(new Vector2(0, y0 + 1), new Vector2(canvasW, y0 + 1), Colors.Black);
                 brush.DrawLine(new Vector2(x0 + 1, 0), new Vector2(x0 + 1, canvasH), Colors.Black);
+                brush.DrawLine(new Vector2(x0, 0), new Vector2(x0, canvasH), Colors.White);
+                brush.DrawLine(new Vector2(0, y0), new Vector2(canvasW, y0), Colors.White);
                 brush.DrawText($"{p.X.ToString("0.000")}, {p.Y.ToString("0.000")}", x0 + 1, y0 - 15, Colors.Black, TextFormat);
                 brush.DrawText($"{p.X.ToString("0.000")}, {p.Y.ToString("0.000")}", x0, y0 - 16, Colors.White, TextFormat);
+                if (_pressed.HasValue) {
+                    var x1 = _pressed.Value.X;
+                    var y1 = _pressed.Value.Y;
+                    brush.DrawLine(new Vector2(x0, y1 + 1), new Vector2(x1, y1 + 1), Colors.Black);
+                    brush.DrawLine(new Vector2(x1 + 1, y0), new Vector2(x1 + 1, y1), Colors.Black);
+                    brush.DrawLine(new Vector2(x0, y1), new Vector2(x1, y1), Colors.White);
+                    brush.DrawLine(new Vector2(x1, y0), new Vector2(x1, y1), Colors.White);
+                }
             }
         }
         private void TopicListSelectionChanged(object sender, SelectionChangedEventArgs e) {
@@ -242,14 +239,18 @@ namespace MonitorTool2 {
             MainCanvas.Invalidate();
         }
         private void MainCanvas_PointerMoved(object sender, PointerRoutedEventArgs e) {
-            var canvas = (CanvasControl)sender;
-            var pointer = e.GetCurrentPoint(canvas);
+            var pointer = e.GetCurrentPoint((CanvasControl)sender);
             _pointer = new Vector2((float)pointer.Position.X, (float)pointer.Position.Y);
+            if (pointer.Properties.IsLeftButtonPressed)
+                _pressed ??= _pointer;
+            else if (_pressed.HasValue)
+                _released = _pointer;
             MainCanvas.Invalidate();
         }
-
         private void MainCanvas_PointerExited(object sender, PointerRoutedEventArgs e) {
-            _pointer = null;
+            _pointer =
+            _pressed =
+            _released = null;
             MainCanvas.Invalidate();
         }
     }
@@ -292,6 +293,9 @@ namespace MonitorTool2 {
                  ? new Area(T1 - cl, T1)
                  : current;
         }
+
+        public static Area Auto(float t0, float t1) =>
+            t0 < t1 ? new Area(t0, t1) : new Area(t1, t0);
 
         public Area Affine(float k, float b) 
             => new Area(k * (T0 - b) + b, k * (T1 - b) + b);
@@ -417,6 +421,53 @@ namespace MonitorTool2 {
                 _rangeY = value;
                 Notify(nameof(Y0Text));
                 Notify(nameof(Y1Text));
+            }
+        }
+
+        internal void Transform(
+            float width,
+            float height,
+            out Func<Vector2, Vector2> transform,
+            out Func<Vector2, Vector2> inverse
+        ) {
+            var c0 = new Vector2(RangeX.C, RangeY.C);
+            var c1 = new Vector2(width, height) / 2;
+            var kx = width / RangeX.L;
+            var ky = height / RangeY.L;
+            Vector2 mirror(Vector2 it) => new Vector2(it.X, height - it.Y);
+            if (AxisEquals) {
+                var k = Math.Min(kx, ky);
+                transform = p => mirror(k * (p - c0) + c1);
+                inverse = p => (mirror(p) - c1) / k + c0;
+            } else {
+                var k = new Vector2(kx, ky);
+                transform = p => mirror(k * (p - c0) + c1);
+                inverse = p => (mirror(p) - c1) / k + c0;
+            }
+        }
+
+        internal void CurrentRange(
+            float width,
+            float height,
+            out Area x,
+            out Area y
+        ) {
+            // 当前绘图范围
+            x = RangeX;
+            y = RangeY;
+            // 如果有等轴性，计算实际显示范围
+            if (AxisEquals) {
+                var xl = x.L;
+                var yl = y.L;
+                var currentK = xl / yl;
+                var actualK = width / height;
+                if (actualK > currentK) {
+                    var e = (yl * actualK - xl) / 2;
+                    x = new Area(x.T0 - e, x.T1 + e);
+                } else {
+                    var e = (xl / actualK - yl) / 2;
+                    y = new Area(y.T0 - e, y.T1 + e);
+                }
             }
         }
 
