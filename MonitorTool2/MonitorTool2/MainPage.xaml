@@ -113,9 +113,8 @@
                         VerticalAlignment="Stretch"
                         Content="&#xE710;" FontFamily="Segoe MDL2 Assets"
                         IsEnabled="False"
-                        Click="AddGroup"/>
+                        Click="AddGroup_Click"/>
                 <TextBox PlaceholderText="xxx.xxx.xxx.xxx:xxxxx"
-                         Text="233.33.33.33:23333"
                          MaxLength="21"
                          Grid.Row="0" Grid.Column="1"
                          TextChanged="TextBox_TextChanged"/>

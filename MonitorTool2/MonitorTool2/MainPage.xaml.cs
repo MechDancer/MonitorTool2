@@ -5,13 +5,19 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Net;
+using System.Text;
 using System.Threading.Tasks;
+using Windows.Storage;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 
 namespace MonitorTool2 {
     public sealed partial class MainPage {
+        private const string EndPointsKey = "endPoints";
+        private static readonly ApplicationDataContainer LocalSettings
+            = ApplicationData.Current.LocalSettings;
+
         public static readonly ObservableCollection<GroupNode> Groups
             = new ObservableCollection<GroupNode>();
 
@@ -22,7 +28,17 @@ namespace MonitorTool2 {
         private readonly HashSet<IPEndPoint> _endPoints;
         private readonly ObservableCollection<GraphicViewModel> _graphs;
         public MainPage() {
-            _endPoints = new HashSet<IPEndPoint>();
+            _endPoints =
+                ((string)LocalSettings.Values[EndPointsKey])
+                ?.Split('\n')
+                 .SelectNotNull(it => TryParseIPEndPoint(it, out var ip) ? ip : null)
+                 .Let(it => new HashSet<IPEndPoint>(it))
+                ?? new HashSet<IPEndPoint>();
+            foreach (var ip in _endPoints) {
+                _memory = ip;
+                AddGroup();
+            }
+
             _graphs = new ObservableCollection<GraphicViewModel>() {
                           new GraphicViewModel("默认", 2)
                       };
@@ -31,9 +47,7 @@ namespace MonitorTool2 {
         }
         private void ShowTopics(object sender, RoutedEventArgs e) => ConfigView.IsPaneOpen = true;
         private void ShowGraphList(object sender, RoutedEventArgs e) => GraphList.IsPaneOpen = true;
-        private void AddGroup(object sender, RoutedEventArgs e) {
-            if (_endPoints.Contains(_memory)) return;
-            _endPoints.Add(_memory);
+        private void AddGroup() {
             var newHub = new RemoteHub(name: $"Monitor[{_memory}]", group: _memory);
             var node = new GroupNode(newHub);
 
@@ -47,6 +61,18 @@ namespace MonitorTool2 {
 
             Groups.Add(node);
         }
+        private void SaveGroups() {
+            var builder = new StringBuilder();
+            foreach (var ip in _endPoints)
+                builder.AppendLine(ip.ToString());
+            LocalSettings.Values[EndPointsKey] = builder.ToString();
+        }
+        private void AddGroup_Click(object sender, RoutedEventArgs e) {
+            if (_endPoints.Contains(_memory)) return;
+            _endPoints.Add(_memory);
+            Task.Run(() => SaveGroups());
+            AddGroup();
+        }
         private void TextBox_TextChanged(object sender, TextChangedEventArgs e) {
             AddButton.IsEnabled = TryParseIPEndPoint(((TextBox)sender).Text, out _memory);
         }
@@ -57,28 +83,13 @@ namespace MonitorTool2 {
         private void ShutDown_Click(object sender, RoutedEventArgs e) {
             if (!((sender as Button)?.DataContext is GroupNode node)) return;
             _endPoints.Remove(node.Address);
+            Task.Run(() => SaveGroups());
             node.Hub.Yell();
             Groups.Remove(node);
         }
         private void ReSync_Click(object sender, RoutedEventArgs e) {
             if (!((sender as Button)?.DataContext is RemoteNode node)) return;
             node.Close();
-        }
-        private static bool TryParseIPEndPoint(string text, out IPEndPoint result) {
-            result = new IPEndPoint(new IPAddress(new byte[4]), 0);
-
-            var temp = text.Split(':');
-            if (temp.Length != 2) return false;
-            if (!ushort.TryParse(temp[1], out var port)) return false;
-            result.Port = port;
-
-            var ip = new byte[4];
-            temp = temp[0].Split('.');
-            if (temp.Length != ip.Length) return false;
-            for (var i = 0; i < ip.Length; ++i)
-                if (!byte.TryParse(temp[i], out ip[i])) return false;
-            result.Address = new IPAddress(ip);
-            return true;
         }
         private void AddGraph(object sender, RoutedEventArgs e) {
             var name = GraphNameBox.Text.Trim();
@@ -114,6 +125,23 @@ namespace MonitorTool2 {
         private void LeftOverlay(object sender, RoutedEventArgs e) {
             VisualStateManager.GoToState(this, nameof(LeftOverlayState), false);
             ConfigView.IsPaneOpen = false;
+        }
+
+        private static bool TryParseIPEndPoint(string text, out IPEndPoint result) {
+            result = new IPEndPoint(new IPAddress(new byte[4]), 0);
+
+            var temp = text.Split(':');
+            if (temp.Length != 2) return false;
+            if (!ushort.TryParse(temp[1], out var port)) return false;
+            result.Port = port;
+
+            var ip = new byte[4];
+            temp = temp[0].Split('.');
+            if (temp.Length != ip.Length) return false;
+            for (var i = 0; i < ip.Length; ++i)
+                if (!byte.TryParse(temp[i], out ip[i])) return false;
+            result.Address = new IPAddress(ip);
+            return true;
         }
     }
 
