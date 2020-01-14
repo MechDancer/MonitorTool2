@@ -14,12 +14,12 @@ using Windows.UI.Xaml.Controls;
 
 namespace MonitorTool2 {
     public sealed partial class MainPage {
-        private const string EndPointsKey = "endPoints";
-        private static readonly ApplicationDataContainer LocalSettings
-            = ApplicationData.Current.LocalSettings;
+        private const string _endPointsKey = "endPoints";
+        private static readonly ApplicationDataContainer
+            _localSettings = ApplicationData.Current.LocalSettings;
 
-        public static readonly ObservableCollection<GroupNode> Groups
-            = new ObservableCollection<GroupNode>();
+        public static readonly ObservableCollection<GroupNode>
+            Groups = new ObservableCollection<GroupNode>();
 
         private Tuple<GraphView, GraphicViewModel> _current;
 
@@ -29,7 +29,7 @@ namespace MonitorTool2 {
         private readonly ObservableCollection<GraphicViewModel> _graphs;
         public MainPage() {
             _endPoints =
-                ((string)LocalSettings.Values[EndPointsKey])
+                ((string)_localSettings.Values[_endPointsKey])
                 ?.Split('\n')
                  .SelectNotNull(it => TryParseIPEndPoint(it, out var ip) ? ip : null)
                  .Let(it => new HashSet<IPEndPoint>(it))
@@ -65,7 +65,7 @@ namespace MonitorTool2 {
             var builder = new StringBuilder();
             foreach (var ip in _endPoints)
                 builder.AppendLine(ip.ToString());
-            LocalSettings.Values[EndPointsKey] = builder.ToString();
+            _localSettings.Values[_endPointsKey] = builder.ToString();
         }
         private void AddGroup_Click(object sender, RoutedEventArgs e) {
             if (_endPoints.Contains(_memory)) return;
@@ -130,7 +130,7 @@ namespace MonitorTool2 {
             VisualStateManager.GoToState(this, nameof(LeftOverlayState), false);
             ConfigView.IsPaneOpen = false;
         }
-       
+
         private static bool TryParseIPEndPoint(string text, out IPEndPoint result) {
             result = new IPEndPoint(new IPAddress(new byte[4]), 0);
 

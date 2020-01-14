@@ -1,4 +1,5 @@
 ﻿using MechDancer.Common;
+using MechDancer.Framework.Net.Resources;
 using Microsoft.Graphics.Canvas.Text;
 using Microsoft.Graphics.Canvas.UI.Xaml;
 using System;
@@ -6,6 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using Windows.UI;
@@ -18,7 +20,7 @@ namespace MonitorTool2 {
     /// 画图控件
     /// </summary>
     public sealed partial class GraphView {
-        private static readonly CanvasTextFormat TextFormat
+        private static readonly CanvasTextFormat _textFormat
             = new CanvasTextFormat { FontSize = 16 };
         public float BlankBorderWidth { get; set; } = 8;
 
@@ -106,28 +108,6 @@ namespace MonitorTool2 {
                            select new TopicMemory(topic.Color, topic.Connect, data)
                           ).ToList();
             }
-            // 没有任何点直接退出
-            if (_memory.None()) {
-                // 绘制标尺
-                if (_pointer.HasValue) {
-                    var x0 = _pointer.Value.X;
-                    var y0 = _pointer.Value.Y;
-                    brush.DrawLine(new Vector2(0, y0 + 1), new Vector2(canvasW, y0 + 1), Colors.Black);
-                    brush.DrawLine(new Vector2(x0 + 1, 0), new Vector2(x0 + 1, canvasH), Colors.Black);
-                    brush.DrawLine(new Vector2(x0, 0), new Vector2(x0, canvasH), Colors.White);
-                    brush.DrawLine(new Vector2(0, y0), new Vector2(canvasW, y0), Colors.White);
-                    if (_pressed.HasValue) {
-                        var x1 = _pressed.Value.X;
-                        var y1 = _pressed.Value.Y;
-                        brush.DrawLine(new Vector2(x0, y1 + 1), new Vector2(x1, y1 + 1), Colors.Black);
-                        brush.DrawLine(new Vector2(x1 + 1, y0), new Vector2(x1 + 1, y1), Colors.Black);
-                        brush.DrawLine(new Vector2(x0, y1), new Vector2(x1, y1), Colors.White);
-                        brush.DrawLine(new Vector2(x1, y0), new Vector2(x1, y1), Colors.White);
-                        if (_released.HasValue) _pressed = _released = null;
-                    }
-                }
-                return;
-            }
             // 显示范围
             var width = canvasW - 2 * BlankBorderWidth;
             var height = canvasH - 2 * BlankBorderWidth;
@@ -186,8 +166,8 @@ namespace MonitorTool2 {
                 brush.DrawLine(new Vector2(x0 + 1, 0), new Vector2(x0 + 1, canvasH), Colors.Black);
                 brush.DrawLine(new Vector2(x0, 0), new Vector2(x0, canvasH), Colors.White);
                 brush.DrawLine(new Vector2(0, y0), new Vector2(canvasW, y0), Colors.White);
-                brush.DrawText($"{p.X.ToString("0.000")}, {p.Y.ToString("0.000")}", x0 + 1, y0 - 15, Colors.Black, TextFormat);
-                brush.DrawText($"{p.X.ToString("0.000")}, {p.Y.ToString("0.000")}", x0, y0 - 16, Colors.White, TextFormat);
+                brush.DrawText($"{p.X.ToString("0.000")}, {p.Y.ToString("0.000")}", x0 + 1, y0 - 15, Colors.Black, _textFormat);
+                brush.DrawText($"{p.X.ToString("0.000")}, {p.Y.ToString("0.000")}", x0, y0 - 16, Colors.White, _textFormat);
                 if (_pressed.HasValue) {
                     var x1 = _pressed.Value.X;
                     var y1 = _pressed.Value.Y;
@@ -195,6 +175,16 @@ namespace MonitorTool2 {
                     brush.DrawLine(new Vector2(x1 + 1, y0), new Vector2(x1 + 1, y1), Colors.Black);
                     brush.DrawLine(new Vector2(x0, y1), new Vector2(x1, y1), Colors.White);
                     brush.DrawLine(new Vector2(x1, y0), new Vector2(x1, y1), Colors.White);
+                }
+                foreach (var group in MainPage.Groups) {
+                    var buffer = new byte[4 * sizeof(float)];
+                    using var stream = new MemoryStream(buffer);
+                    using var writer = new NetworkDataWriter(stream);
+                    writer.Write((x0 - BlankBorderWidth) / width);
+                    writer.Write((y0 - BlankBorderWidth) / height);
+                    writer.Write(p.X);
+                    writer.Write(p.Y);
+                    group.Hub.Broadcast((byte)UdpCmd.Common, buffer);
                 }
             }
         }
@@ -255,6 +245,9 @@ namespace MonitorTool2 {
         }
     }
 
+    /// <summary>
+    /// 一维区间
+    /// </summary>
     internal struct Area {
         public readonly float T0, T1;
         public float C => (T0 + T1) / 2;
@@ -504,6 +497,9 @@ namespace MonitorTool2 {
         public override string ToString() => $"{Remote}-{Core.Name}";
     }
 
+    /// <summary>
+    /// 话题数据缓存
+    /// </summary>
     public class TopicMemory {
         public Color Color { get; }
         public bool Connect { get; }
