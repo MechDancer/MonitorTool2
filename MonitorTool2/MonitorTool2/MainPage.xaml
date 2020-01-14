@@ -61,7 +61,8 @@
                            Margin="4,0,16,0"
                            VerticalAlignment="Center"/>
                 <Button Foreground="Tomato"
-                        Content="&#xED61;" FontFamily="Segoe MDL2 Assets" />
+                        Content="&#xED61;" FontFamily="Segoe MDL2 Assets"
+                        Click="ClearData_Click"/>
             </StackPanel>
         </DataTemplate>
 
@@ -80,7 +81,8 @@
                          VerticalContentAlignment="Bottom"/>
                 <Button Foreground="Tomato"
                         VerticalAlignment="Stretch"
-                        Content="&#xED61;" FontFamily="Segoe MDL2 Assets" />
+                        Content="&#xED61;" FontFamily="Segoe MDL2 Assets"
+                        Click="ClearData_Click"/>
             </StackPanel>
         </DataTemplate>
 

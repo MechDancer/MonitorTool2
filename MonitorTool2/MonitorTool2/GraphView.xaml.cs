@@ -5,6 +5,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using Windows.UI;
@@ -86,9 +87,9 @@ namespace MonitorTool2 {
                             if (group.Any()) yield return group;
                             // 迭代器移动，失败直接退出
                             if (!itor.MoveNext()) {
-                                if (!topic.Background // 背景模式，跳过
-                                 && !topic.FrameMode  // 帧模式，所有有效点已经计算过
-                                 && !last.HasValue    // 不存在有效点，跳过
+                                if (!topic.Background // 非背景模式
+                                 && !topic.FrameMode  // 非帧模式（帧模式下所有有效点已经计算过）
+                                 && last.HasValue     // 存在有效点
                                 ) {
                                     areaXFrame += last?.X;
                                     areaYFrame += last?.Y;
@@ -167,21 +168,23 @@ namespace MonitorTool2 {
             // 在缓存上迭代
             foreach (var (color, connect, topic) in _memory) {
                 foreach (var group in topic) {
-                    var iter = group.GetEnumerator();
-                    // 缓存一点
-                    var current = transform(new Vector2(iter.Current.X, iter.Current.Y));
-                    while (iter.MoveNext()) {
-                        var pose = iter.Current;
+                    Vector2 current = default;
+                    var notFirst = false;
+                    foreach(var pose in group) {
                         // 更新缓存
                         var last = current;
                         current = transform(new Vector2(pose.X, pose.Y));
-                        // 画线
-                        brush.DrawCircle(current.X, current.Y, 1, color);
                         // 画点
-                        if (connect) brush.DrawLine(last, current, color);
+                        brush.DrawCircle(current.X, current.Y, 1, color);
+                        // 画线
+                        if (notFirst && connect) 
+                            brush.DrawLine(last, current, color);
+                        else 
+                            notFirst = true;
                         // 画姿态
                         if (!float.IsNaN(pose.Z))
-                            brush.DrawLine(current, current + new Vector2(MathF.Cos(pose.Z), MathF.Sin(pose.Z)) * 10, color);
+                            brush.DrawLine(current, current + new Vector2(MathF.Cos(pose.Z), -MathF.Sin(pose.Z)) * 10, color);
+
                     }
                 }
             }

@@ -91,6 +91,10 @@ namespace MonitorTool2 {
             if (!((sender as Button)?.DataContext is RemoteNode node)) return;
             node.Close();
         }
+        private void ClearData_Click(object sender, RoutedEventArgs e) {
+            if (!((sender as Button)?.DataContext is ITopicNode node)) return;
+            node.Clear();
+        }
         private void AddGraph(object sender, RoutedEventArgs e) {
             var name = GraphNameBox.Text.Trim();
             if (string.IsNullOrWhiteSpace(name) || _graphs.Any(it => it.Name == name)) return;
@@ -126,7 +130,7 @@ namespace MonitorTool2 {
             VisualStateManager.GoToState(this, nameof(LeftOverlayState), false);
             ConfigView.IsPaneOpen = false;
         }
-
+       
         private static bool TryParseIPEndPoint(string text, out IPEndPoint result) {
             result = new IPEndPoint(new IPAddress(new byte[4]), 0);
 

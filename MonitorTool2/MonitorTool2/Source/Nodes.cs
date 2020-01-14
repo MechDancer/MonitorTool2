@@ -271,6 +271,7 @@ namespace MonitorTool2 {
         IEnumerable Data { get; }
 
         void SetLevel(GraphicViewModel source, TopicState level);
+        void Clear();
     }
 
     /// <summary>
@@ -324,6 +325,7 @@ namespace MonitorTool2 {
             else
                 State = TopicState.None;
         }
+        public abstract void Clear();
     }
 
     /// <summary>
@@ -372,6 +374,7 @@ namespace MonitorTool2 {
             else
                 State = TopicState.None;
         }
+        public abstract void Clear();
     }
 
     public class Accumulator<T> : AccumulatorNodeBase where T : struct {
@@ -393,6 +396,10 @@ namespace MonitorTool2 {
             }
             Paint();
         }
+        public override void Clear() {
+            lock (_data) { _data.Clear(); }
+            Paint();
+        }
     }
 
     public class Frame<T> : FrameNodeBase where T : struct {
@@ -405,6 +412,10 @@ namespace MonitorTool2 {
                 _data.Clear();
                 _data.AddRange(data);
             }
+            Paint();
+        }
+        public override void Clear() {
+            lock (_data) { _data.Clear(); }
             Paint();
         }
     }
