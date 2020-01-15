@@ -105,7 +105,7 @@ namespace MonitorTool2 {
                 _memory = (from topic in actives
                            let data = Split(topic).ToList()
                            where data.Any()
-                           select new TopicMemory(topic.Color, topic.Connect, data)
+                           select new TopicMemory(topic.Color, topic.Connect, topic.Radius, data)
                           ).ToList();
             }
             // 显示范围
@@ -125,7 +125,7 @@ namespace MonitorTool2 {
                  ?? currentY;
             } else if (_released.HasValue) {
                 _viewModel.AutoRange = false;
-                _viewModel.Transform(canvasW, canvasH, out _, out var tf);
+                _viewModel.Transform(width, height, BlankBorderWidth, out _, out var tf);
                 var a = tf(_pressed.Value);
                 var b = tf(_released.Value);
                 _viewModel.CurrentRange(width, height, out var currentX, out var currentY);
@@ -134,9 +134,12 @@ namespace MonitorTool2 {
                 _pressed = _released = null;
             }
             // 根据范围计算变换
-            _viewModel.Transform(canvasW, canvasH, out var transform, out var inverse);
+            _viewModel.Transform(width, height, 
+                                 BlankBorderWidth, 
+                                 out var transform,
+                                 out var inverse);
             // 在缓存上迭代
-            foreach (var (color, connect, topic) in _memory) {
+            foreach (var (color, connect, r, topic) in _memory) {
                 foreach (var group in topic) {
                     Vector2 current = default;
                     var notFirst = false;
@@ -145,7 +148,7 @@ namespace MonitorTool2 {
                         var last = current;
                         current = transform(new Vector2(pose.X, pose.Y));
                         // 画点
-                        brush.DrawCircle(current.X, current.Y, 1, color);
+                        brush.DrawCircle(current.X, current.Y, 1, color, r);
                         // 画线
                         if (notFirst && connect)
                             brush.DrawLine(last, current, color);
@@ -420,9 +423,11 @@ namespace MonitorTool2 {
         internal void Transform(
             float width,
             float height,
+            float borderWidth,
             out Func<Vector2, Vector2> transform,
             out Func<Vector2, Vector2> inverse
         ) {
+            var o = new Vector2(borderWidth, borderWidth);
             var c0 = new Vector2(RangeX.C, RangeY.C);
             var c1 = new Vector2(width, height) / 2;
             var kx = width / RangeX.L;
@@ -430,12 +435,12 @@ namespace MonitorTool2 {
             Vector2 mirror(Vector2 it) => new Vector2(it.X, height - it.Y);
             if (AxisEquals) {
                 var k = Math.Min(kx, ky);
-                transform = p => mirror(k * (p - c0) + c1);
-                inverse = p => (mirror(p) - c1) / k + c0;
+                transform = p => mirror(k * (p - c0) + c1) + o;
+                inverse = p => (mirror(p - o) - c1) / k + c0;
             } else {
                 var k = new Vector2(kx, ky);
-                transform = p => mirror(k * (p - c0) + c1);
-                inverse = p => (mirror(p) - c1) / k + c0;
+                transform = p => mirror(k * (p - c0) + c1) + o;
+                inverse = p => (mirror(p - o) - c1) / k + c0;
             }
         }
 
@@ -503,16 +508,19 @@ namespace MonitorTool2 {
     public class TopicMemory {
         public Color Color { get; }
         public bool Connect { get; }
+        public float Radius { get; }
         public List<List<Vector3>> Data { get; }
 
-        public TopicMemory(Color color, bool connect, List<List<Vector3>> data) {
+        public TopicMemory(Color color, bool connect, float radius, List<List<Vector3>> data) {
             Color = color;
             Connect = connect;
+            Radius = radius;
             Data = data;
         }
-        public void Deconstruct(out Color color, out bool connect, out List<List<Vector3>> data) {
+        public void Deconstruct(out Color color, out bool connect,out float radius, out List<List<Vector3>> data) {
             color = Color;
             connect = Connect;
+            radius = Radius;
             data = Data;
         }
     }
@@ -530,6 +538,7 @@ namespace MonitorTool2 {
                      _pause = false,
                      _background = false,
                      _connect = false;
+        private float _radius = 2;
 
         public string Title => $"{_remote}-{_core.Name}";
         public bool FrameMode => _core is FrameNodeBase;
@@ -567,6 +576,13 @@ namespace MonitorTool2 {
             get => _connect;
             set {
                 if (SetProperty(ref _connect, value))
+                    _graph.Paint();
+            }
+        }
+        public float Radius {
+            get => _radius;
+            set {
+                if (SetProperty(ref _radius, value))
                     _graph.Paint();
             }
         }
