@@ -1,5 +1,5 @@
 ﻿<UserControl
-    x:Class="MonitorTool2.GraphView"
+    x:Class="MonitorTool2.GraphicView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:MonitorTool2"
@@ -39,7 +39,8 @@
                     Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3">
             <AppBarToggleButton Icon="Pin" Label="锁定"
                                 IsChecked="{x:Bind _viewModel.IsLocked,Mode=TwoWay}"/>
-            <AppBarToggleButton Icon="Stop" Label="维持纵横比"
+            <AppBarToggleButton Icon="Stop" Label="维持比例"
+                                Visibility="{x:Bind _viewModel.Collapse1D}"
                                 IsChecked="{x:Bind _viewModel.AxisEquals,Mode=TwoWay}"/>
             <AppBarSeparator/>
             <AppBarToggleButton Label="自动视野"

@@ -21,7 +21,7 @@ namespace MonitorTool2 {
         public static readonly ObservableCollection<GroupNode>
             Groups = new ObservableCollection<GroupNode>();
 
-        private Tuple<GraphView, GraphicViewModel> _current;
+        private Tuple<GraphicView, GraphicViewModel> _current;
 
         private IPEndPoint _memory;
 
@@ -116,11 +116,13 @@ namespace MonitorTool2 {
                 .OfType<GraphicViewModel>()
                 .SingleOrDefault()
                 ?.Let(model => {
-                    var view = new GraphView(model);
-                    model.Resume();
-                    MainGrid.Children.Add(view);
-                    Grid.SetColumn(view, 1);
-                    return Tuple.Create(view, model);
+                    if (model.Dim < 3) {
+                        var view = new GraphicView(model);
+                        model.Resume();
+                        MainGrid.Children.Add(view);
+                        Grid.SetColumn(view, 1);
+                        return Tuple.Create(view, model);
+                    } else return null;
                 });
         }
         private void LeftInline(object sender, RoutedEventArgs e) {

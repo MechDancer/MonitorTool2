@@ -19,7 +19,7 @@ namespace MonitorTool2 {
     /// <summary>
     /// 画图控件
     /// </summary>
-    public sealed partial class GraphView {
+    public sealed partial class GraphicView {
         private static readonly CanvasTextFormat _textFormat
             = new CanvasTextFormat { FontSize = 16 };
         public float BlankBorderWidth { get; set; } = 8;
@@ -30,7 +30,7 @@ namespace MonitorTool2 {
         private ObservableCollection<TopicStub> _allTopics { get; }
             = new ObservableCollection<TopicStub>();
 
-        public GraphView(GraphicViewModel model) {
+        public GraphicView(GraphicViewModel model) {
             InitializeComponent();
             _viewModel = model;
             model.SetControl(MainCanvas);
@@ -129,8 +129,8 @@ namespace MonitorTool2 {
                 var a = tf(_pressed.Value);
                 var b = tf(_released.Value);
                 _viewModel.CurrentRange(width, height, out var currentX, out var currentY);
-                _viewModel.RangeX = Area.Auto(a.X, b.X).Determine(currentX, _viewModel.AllowWidthShrink);
-                _viewModel.RangeY = Area.Auto(a.Y, b.Y).Determine(currentY, _viewModel.AllowHeightShrink);
+                _viewModel.RangeX = Area.Auto(a.X, b.X).Determine(currentX, true);
+                _viewModel.RangeY = Area.Auto(a.Y, b.Y).Determine(currentY, true);
                 _pressed = _released = null;
             }
             // 根据范围计算变换
@@ -310,10 +310,10 @@ namespace MonitorTool2 {
                      _axisEquals,
                      _autoWidthAll = true,
                      _autoWidthFrame = false,
-                     _allowWidthShrink = true,
+                     _allowWidthShrink = false,
                      _autoHeightAll = true,
                      _autoHeightFrame = false,
-                     _allowHeightShrink = true,
+                     _allowHeightShrink = false,
                      _autoRange = true;
         private Area _rangeX, _rangeY;
 
@@ -419,6 +419,7 @@ namespace MonitorTool2 {
                 Notify(nameof(Y1Text));
             }
         }
+        public bool Collapse1D => Dim != 1;
 
         internal void Transform(
             float width,
@@ -491,7 +492,7 @@ namespace MonitorTool2 {
     /// <summary>
     /// 话题存根
     /// </summary>
-    public class TopicStub {
+    internal class TopicStub {
         public readonly string Remote;
         public readonly ITopicNode Core;
 
@@ -505,7 +506,7 @@ namespace MonitorTool2 {
     /// <summary>
     /// 话题数据缓存
     /// </summary>
-    public class TopicMemory {
+    internal class TopicMemory {
         public Color Color { get; }
         public bool Connect { get; }
         public float Radius { get; }
@@ -589,15 +590,15 @@ namespace MonitorTool2 {
 
         public IEnumerable Data => _core.Data;
 
-        public TopicViewModel(TopicStub stub, GraphicViewModel graph) {
+        internal TopicViewModel(TopicStub stub, GraphicViewModel graph) {
             _remote = stub.Remote;
             _core = stub.Core;
             _graph = graph;
             _core.SetLevel(_graph, TopicState.Active);
         }
-        public bool CheckEquals(TopicStub stub)
+        internal bool CheckEquals(TopicStub stub)
             => _remote == stub.Remote && _core.Name == stub.Core.Name;
-        public void Close()
+        internal void Close()
             => _core.SetLevel(_graph, TopicState.None);
 
         public override string ToString() => Title;
