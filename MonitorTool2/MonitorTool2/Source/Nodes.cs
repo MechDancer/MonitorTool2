@@ -95,15 +95,12 @@ namespace MonitorTool2 {
     /// </summary>
     public class Dimension1Node : DimensionNodeBase {
         private static readonly DateTime _t0 = DateTime.Now;
-        private readonly Dictionary<string, Accumulator<Vector2>> _topics;
+        private readonly Dictionary<string, Accumulator1> _topics
+            = new Dictionary<string, Accumulator1>();
 
         public override byte Dim => 1;
-
         public override ObservableCollection<ITopicNode> Topics { get; }
-        public Dimension1Node() {
-            _topics = new Dictionary<string, Accumulator<Vector2>>();
-            Topics = new ObservableCollection<ITopicNode>();
-        }
+            = new ObservableCollection<ITopicNode>();
         public override void Receive(string name, bool dir, bool frame, MemoryStream stream) {
             Debug.Assert(!dir);
             Debug.Assert(!frame);
@@ -126,17 +123,14 @@ namespace MonitorTool2 {
     /// 2 维节点
     /// </summary>
     public class Dimension2Node : DimensionNodeBase {
-        private readonly Dictionary<string, Accumulator<Vector3>> _accumulators;
-        private readonly Dictionary<string, Frame<Vector3>> _frames;
+        private readonly Dictionary<string, Accumulator2> _accumulators
+            = new Dictionary<string, Accumulator2>();
+        private readonly Dictionary<string, Frame2> _frames
+            = new Dictionary<string, Frame2>();
 
         public override byte Dim => 2;
-
         public override ObservableCollection<ITopicNode> Topics { get; }
-        public Dimension2Node() {
-            _accumulators = new Dictionary<string, Accumulator<Vector3>>();
-            _frames = new Dictionary<string, Frame<Vector3>>();
-            Topics = new ObservableCollection<ITopicNode>();
-        }
+            = new ObservableCollection<ITopicNode>();
         public override void Receive(string name, bool dir, bool frame, MemoryStream stream) {
             if (frame) {
                 if (!_frames.TryGetValue(name, out var frameNode)) {
@@ -184,17 +178,13 @@ namespace MonitorTool2 {
     /// 3 维节点
     /// </summary>
     public class Dimension3Node : DimensionNodeBase {
-        private readonly Dictionary<string, Accumulator<Vector3>> _accumulators;
-        private readonly Dictionary<string, Frame<Vector3>> _frames;
+        private readonly Dictionary<string, Accumulator3> _accumulators
+            = new Dictionary<string, Accumulator3>();
+        private readonly Dictionary<string, Frame3> _frames
+            = new Dictionary<string, Frame3>();
 
         public override byte Dim => 3;
-
         public override ObservableCollection<ITopicNode> Topics { get; }
-        public Dimension3Node() {
-            _accumulators = new Dictionary<string, Accumulator<Vector3>>();
-            _frames = new Dictionary<string, Frame<Vector3>>();
-            Topics = new ObservableCollection<ITopicNode>();
-        }
         public override void Receive(string name, bool dir, bool frame, MemoryStream stream) {
             Debug.Assert(!dir);
             if (frame) {
@@ -242,16 +232,22 @@ namespace MonitorTool2 {
     public interface ITopicNode {
         string Name { get; }
         TopicState State { get; }
-        IEnumerable Data { get; }
 
         void SetLevel(GraphicViewModel source, TopicState level);
         void Clear();
     }
 
+    public interface ITopicNode<T>
+        : ITopicNode
+        where T : struct {
+        IReadOnlyList<T> Data { get; }
+    }
+
     /// <summary>
     /// 累积模式
     /// </summary>
-    public abstract class AccumulatorNodeBase : BindableBase, ITopicNode {
+    public abstract class AccumulatorNodeBase
+        : BindableBase, ITopicNode {
         private readonly HashSet<GraphicViewModel>
             _subscribers = new HashSet<GraphicViewModel>(),
             _observers = new HashSet<GraphicViewModel>();
@@ -268,7 +264,6 @@ namespace MonitorTool2 {
             get => _capacity;
             set => SetProperty(ref _capacity, value);
         }
-        public abstract IEnumerable Data { get; }
 
         protected AccumulatorNodeBase(string name)
             => Name = $"[点]{name}";
@@ -305,7 +300,8 @@ namespace MonitorTool2 {
     /// <summary>
     /// 帧模式
     /// </summary>
-    public abstract class FrameNodeBase : BindableBase, ITopicNode {
+    public abstract class FrameNodeBase
+        : BindableBase, ITopicNode {
         private readonly HashSet<GraphicViewModel>
            _subscribers = new HashSet<GraphicViewModel>(),
            _observers = new HashSet<GraphicViewModel>();
@@ -317,7 +313,6 @@ namespace MonitorTool2 {
             get => _state;
             private set => SetProperty(ref _state, value);
         }
-        public abstract IEnumerable Data { get; }
 
         protected FrameNodeBase(string name)
             => Name = $"[帧]{name}";
@@ -351,10 +346,12 @@ namespace MonitorTool2 {
         public abstract void Clear();
     }
 
-    public class Accumulator<T> : AccumulatorNodeBase where T : struct {
+    public class Accumulator<T>
+        : AccumulatorNodeBase, ITopicNode<T>
+        where T : struct {
         private readonly List<T> _data = new List<T>();
 
-        public override IEnumerable Data => _data;
+        public IReadOnlyList<T> Data => _data;
         public Accumulator(string name) : base(name) { }
         public void Receive(params T[] data) {
             lock (_data) {
@@ -376,10 +373,12 @@ namespace MonitorTool2 {
         }
     }
 
-    public class Frame<T> : FrameNodeBase where T : struct {
+    public class Frame<T>
+        : FrameNodeBase, ITopicNode<T>
+        where T : struct {
         private readonly List<T> _data = new List<T>();
 
-        public override IEnumerable Data => _data;
+        public IReadOnlyList<T> Data => _data;
         public Frame(string name) : base(name) { }
         public void Receive(params T[] data) {
             lock (_data) {

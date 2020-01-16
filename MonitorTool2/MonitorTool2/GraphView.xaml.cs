@@ -54,7 +54,7 @@ namespace MonitorTool2 {
                 var actives = _viewModel.Topics.Where(it => it.Active).ToList();
                 if (actives.None()) return;
                 // 从话题缓存抄录所有点，同时确定工作范围
-                IEnumerable<List<Vector3>> Split(TopicViewModel topic) {
+                IEnumerable<List<Vector3>> Split(TopicViewModel2 topic) {
                     lock (topic.Data) {
                         // 取出迭代器，没有任何点则直接退出
                         var itor = topic.Data.OfType<Vector3>().GetEnumerator();
@@ -103,7 +103,7 @@ namespace MonitorTool2 {
                 }
                 // 执行抄录
                 _memory = (from topic in actives
-                           let data = Split(topic).ToList()
+                           let data = Split((TopicViewModel2)topic).ToList()
                            where data.Any()
                            select (ITopicMemory)new TopicMemory2(topic.Color, topic.Connect, topic.Radius, data)
                           ).ToList();
@@ -134,8 +134,8 @@ namespace MonitorTool2 {
                 _pressed = _released = null;
             }
             // 根据范围计算变换
-            _viewModel.Transform(width, height, 
-                                 BlankBorderWidth, 
+            _viewModel.Transform(width, height,
+                                 BlankBorderWidth,
                                  out var transform,
                                  out var inverse);
             // 在缓存上迭代
@@ -195,7 +195,7 @@ namespace MonitorTool2 {
             e.AddedItems
                 .OfType<TopicStub>()
                 .SingleOrDefault()
-                ?.Let(it => new TopicViewModel(it, _viewModel))
+                ?.Let(it => new TopicViewModel2(it, _viewModel))
                 ?.TakeUnless(_viewModel.Topics.Contains)
                 ?.Also(_viewModel.Topics.Add);
         }
@@ -293,7 +293,7 @@ namespace MonitorTool2 {
         public static Area Auto(float t0, float t1) =>
             t0 < t1 ? new Area(t0, t1) : new Area(t1, t0);
 
-        public Area Affine(float k, float b) 
+        public Area Affine(float k, float b)
             => new Area(k * (T0 - b) + b, k * (T1 - b) + b);
     }
 
@@ -301,8 +301,8 @@ namespace MonitorTool2 {
     /// 图模型
     /// </summary>
     public class GraphicViewModel : BindableBase {
-        public ObservableCollection<TopicViewModel> Topics { get; }
-            = new ObservableCollection<TopicViewModel>();
+        public ObservableCollection<TopicViewModelBase> Topics { get; }
+            = new ObservableCollection<TopicViewModelBase>();
 
         private CanvasControl _canvas;
         private Color _background = Colors.Transparent;
@@ -490,13 +490,10 @@ namespace MonitorTool2 {
     }
 
     /// <summary>
-    /// 话题模型
+    /// 话题模型的公共基类
     /// </summary>
-    public class TopicViewModel : BindableBase {
+    public abstract class TopicViewModelBase : BindableBase {
         private readonly string _remote;
-        private readonly ITopicNode _core;
-        private readonly GraphicViewModel _graph;
-
         private Color _color = NewRandomColor();
         private bool _active = true,
                      _pause = false,
@@ -504,125 +501,128 @@ namespace MonitorTool2 {
                      _connect = false;
         private float _radius = 2;
 
-        public string Title => $"{_remote}-{_core.Name}";
-        public bool FrameMode => _core is FrameNodeBase;
+        protected abstract ITopicNode Core { get; }
+        protected GraphicViewModel Graph { get; }
+        protected TopicViewModelBase(string remote, GraphicViewModel graph) {
+            _remote = remote;
+            Graph = graph;
+        }
+
+        public string Title => $"{_remote}-{Core.Name}";
+        public bool FrameMode => Core is FrameNodeBase;
         public Color Color {
             get => _color;
             set {
                 if (SetProperty(ref _color, value))
-                    _graph.Paint();
+                    Graph.Paint();
             }
         }
         public bool Active {
             get => _active;
             set {
                 if (!SetProperty(ref _active, value)) return;
-                _core.SetLevel(_graph, _active && !_pause ? TopicState.Active : TopicState.Subscribed);
-                _graph.Paint();
+                Core.SetLevel(Graph, _active && !_pause ? TopicState.Active : TopicState.Subscribed);
+                Graph.Paint();
             }
         }
         public bool IsPaused {
             get => _pause;
             set {
                 if (!SetProperty(ref _pause, value)) return;
-                _core.SetLevel(_graph, _active && !_pause ? TopicState.Active : TopicState.Subscribed);
-                _graph.Paint();
+                Core.SetLevel(Graph, _active && !_pause ? TopicState.Active : TopicState.Subscribed);
+                Graph.Paint();
             }
         }
         public bool Background {
             get => _background;
             set {
                 if (SetProperty(ref _background, value))
-                    _graph.Paint();
+                    Graph.Paint();
             }
         }
         public bool Connect {
             get => _connect;
             set {
                 if (SetProperty(ref _connect, value))
-                    _graph.Paint();
+                    Graph.Paint();
             }
         }
         public float Radius {
             get => _radius;
             set {
                 if (SetProperty(ref _radius, value))
-                    _graph.Paint();
+                    Graph.Paint();
             }
         }
 
-        public IEnumerable Data => _core.Data;
-
-        internal TopicViewModel(TopicStub stub, GraphicViewModel graph) {
-            _remote = stub.Remote;
-            _core = stub.Core;
-            _graph = graph;
-            _core.SetLevel(_graph, TopicState.Active);
-        }
         internal bool CheckEquals(TopicStub stub)
-            => _remote == stub.Remote && _core.Name == stub.Core.Name;
+           => _remote == stub.Remote && Core.Name == stub.Core.Name;
         internal void Close()
-            => _core.SetLevel(_graph, TopicState.None);
-
-        //internal IEnumerable<Vector3> XXX(ref Area xAll) {
-        //    lock (_core.Data) {
-        //        // 取出迭代器，没有任何点则直接退出
-        //        var itor = _core.Data.OfType<Vector3>().GetEnumerator();
-        //        if (!itor.MoveNext()) yield break;
-        //        // 初始化末有效点存储
-        //        var last = (Vector2?)null;
-        //        // 否则按分隔符划分数据
-        //        IEnumerable<Vector3> Accumulate() {
-        //            while (true) {
-        //                var p = itor.Current;
-        //                last = new Vector2(p.X, p.Y);
-        //                // 对于分隔符，由外部控制迭代器移动
-        //                if (float.IsNaN(p.X)) yield break;
-        //                // 非背景模式下，控制自动范围
-        //                if (!Background) {
-        //                    areaX += p.X;
-        //                    areaY += p.Y;
-        //                    if (FrameMode) {
-        //                        areaXFrame += p.X;
-        //                        areaYFrame += p.Y;
-        //                    }
-        //                }
-        //                // 存储最末有效点
-        //                yield return p;
-        //                // 迭代器移动，失败直接退出
-        //                if (!itor.MoveNext()) yield break;
-        //            }
-        //        }
-        //        // 执行划分
-        //        while (true) {
-        //            var group = Accumulate().ToList();
-        //            if (group.Any()) yield return group;
-        //            // 迭代器移动，失败直接退出
-        //            if (!itor.MoveNext()) {
-        //                if (!Background // 非背景模式
-        //                 && !FrameMode  // 非帧模式（帧模式下所有有效点已经计算过）
-        //                 && last.HasValue     // 存在有效点
-        //                ) {
-        //                    areaXFrame += last?.X;
-        //                    areaYFrame += last?.Y;
-        //                }
-        //                yield break;
-        //            }
-        //        }
-        //    }
-        //}
+            => Core.SetLevel(Graph, TopicState.None);
 
         public override string ToString() => Title;
         public override bool Equals(object obj)
-            => this == obj || Title == (obj as TopicViewModel)?.Title;
+            => this == obj || Title == (obj as TopicViewModelBase)?.Title;
         public override int GetHashCode()
-            => Title.GetHashCode();
+            => Title.GetHashCode(StringComparison.Ordinal);
 
+        #region 生成随机颜色
         private static readonly Random _engine = new Random();
+        private static byte Raise(byte b, byte value)
+            => (byte)(b + value % (256 - b));
         private static Color NewRandomColor() {
-            var rgb = new byte[3];
-            _engine.NextBytes(rgb);
-            return Color.FromArgb(255, rgb[0], rgb[1], rgb[2]);
+            var argb = new byte[4];
+            _engine.NextBytes(argb);
+            return Color.FromArgb(Raise(192, argb[0]),
+                                  Raise(32, argb[1]),
+                                  Raise(32, argb[2]),
+                                  Raise(32, argb[3]));
+        }
+        #endregion
+    }
+
+    /// <summary>
+    /// 一维话题模型
+    /// </summary>
+    public class TopicViewModel1 : TopicViewModelBase {
+        private readonly Accumulator1 _core;
+        public IReadOnlyList<Vector2> Data => _core.Data;
+        protected override ITopicNode Core => _core;
+
+        internal TopicViewModel1(TopicStub stub, GraphicViewModel graph)
+            : base(stub.Remote, graph) {
+            _core = (Accumulator1)stub.Core;
+            _core.SetLevel(Graph, TopicState.Active);
+        }
+    }
+
+    /// <summary>
+    /// 二维话题模型
+    /// </summary>
+    public class TopicViewModel2 : TopicViewModelBase {
+        private readonly ITopicNode<Vector3> _core;
+        public IReadOnlyList<Vector3> Data => _core.Data;
+        protected override ITopicNode Core => _core;
+
+        internal TopicViewModel2(TopicStub stub, GraphicViewModel graph)
+            : base(stub.Remote, graph) {
+            _core = (ITopicNode<Vector3>)stub.Core;
+            _core.SetLevel(Graph, TopicState.Active);
+        }
+    }
+
+    /// <summary>
+    /// 三维话题模型
+    /// </summary>
+    public class TopicViewModel3 : TopicViewModelBase {
+        private readonly ITopicNode<Vector3> _core;
+        public IReadOnlyList<Vector3> Data => _core.Data;
+        protected override ITopicNode Core => _core;
+
+        internal TopicViewModel3(TopicStub stub, GraphicViewModel graph)
+            : base(stub.Remote, graph) {
+            _core = (ITopicNode<Vector3>)stub.Core;
+            _core.SetLevel(Graph, TopicState.Active);
         }
     }
 }
