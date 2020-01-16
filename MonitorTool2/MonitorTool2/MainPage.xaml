@@ -53,7 +53,7 @@
 
         <DataTemplate x:Key="FrameTemplate" x:DataType="local:FrameNodeBase">
             <StackPanel Orientation="Horizontal">
-                <Rectangle Fill="{x:Bind local:Global.StateBrush(State),Mode=OneWay}"
+                <Rectangle Fill="{x:Bind local:Functions.Brushify(State),Mode=OneWay}"
                            Height="8" Width="8"
                            HorizontalAlignment="Center" 
                            VerticalAlignment="Center"/>
@@ -68,7 +68,7 @@
 
         <DataTemplate x:Key="AccumulatorTemplate" x:DataType="local:AccumulatorNodeBase">
             <StackPanel Orientation="Horizontal">
-                <Rectangle Fill="{x:Bind local:Global.StateBrush(State),Mode=OneWay}"
+                <Rectangle Fill="{x:Bind local:Functions.Brushify(State),Mode=OneWay}"
                            Height="8" Width="8"
                            HorizontalAlignment="Center" 
                            VerticalAlignment="Center"/>

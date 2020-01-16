@@ -24,7 +24,7 @@ namespace MonitorTool2 {
             = new CanvasTextFormat { FontSize = 16 };
         public float BlankBorderWidth { get; set; } = 8;
 
-        private List<TopicMemory> _memory = new List<TopicMemory>();
+        private List<ITopicMemory> _memory = new List<ITopicMemory>();
         private Vector2? _pointer = null, _pressed = null, _released = null;
         private GraphicViewModel _viewModel { get; }
         private ObservableCollection<TopicStub> _allTopics { get; }
@@ -105,7 +105,7 @@ namespace MonitorTool2 {
                 _memory = (from topic in actives
                            let data = Split(topic).ToList()
                            where data.Any()
-                           select new TopicMemory(topic.Color, topic.Connect, topic.Radius, data)
+                           select (ITopicMemory)new TopicMemory2(topic.Color, topic.Connect, topic.Radius, data)
                           ).ToList();
             }
             // 显示范围
@@ -139,7 +139,7 @@ namespace MonitorTool2 {
                                  out var transform,
                                  out var inverse);
             // 在缓存上迭代
-            foreach (var (color, connect, r, topic) in _memory) {
+            foreach (var (color, connect, r, topic) in _memory.OfType<TopicMemoryBase<Vector3>>()) {
                 foreach (var group in topic) {
                     Vector2 current = default;
                     var notFirst = false;
@@ -490,43 +490,6 @@ namespace MonitorTool2 {
     }
 
     /// <summary>
-    /// 话题存根
-    /// </summary>
-    internal class TopicStub {
-        public readonly string Remote;
-        public readonly ITopicNode Core;
-
-        public TopicStub(string remote, ITopicNode core) {
-            Remote = remote;
-            Core = core;
-        }
-        public override string ToString() => $"{Remote}-{Core.Name}";
-    }
-
-    /// <summary>
-    /// 话题数据缓存
-    /// </summary>
-    internal class TopicMemory {
-        public Color Color { get; }
-        public bool Connect { get; }
-        public float Radius { get; }
-        public List<List<Vector3>> Data { get; }
-
-        public TopicMemory(Color color, bool connect, float radius, List<List<Vector3>> data) {
-            Color = color;
-            Connect = connect;
-            Radius = radius;
-            Data = data;
-        }
-        public void Deconstruct(out Color color, out bool connect,out float radius, out List<List<Vector3>> data) {
-            color = Color;
-            connect = Connect;
-            radius = Radius;
-            data = Data;
-        }
-    }
-
-    /// <summary>
     /// 话题模型
     /// </summary>
     public class TopicViewModel : BindableBase {
@@ -600,6 +563,54 @@ namespace MonitorTool2 {
             => _remote == stub.Remote && _core.Name == stub.Core.Name;
         internal void Close()
             => _core.SetLevel(_graph, TopicState.None);
+
+        //internal IEnumerable<Vector3> XXX(ref Area xAll) {
+        //    lock (_core.Data) {
+        //        // 取出迭代器，没有任何点则直接退出
+        //        var itor = _core.Data.OfType<Vector3>().GetEnumerator();
+        //        if (!itor.MoveNext()) yield break;
+        //        // 初始化末有效点存储
+        //        var last = (Vector2?)null;
+        //        // 否则按分隔符划分数据
+        //        IEnumerable<Vector3> Accumulate() {
+        //            while (true) {
+        //                var p = itor.Current;
+        //                last = new Vector2(p.X, p.Y);
+        //                // 对于分隔符，由外部控制迭代器移动
+        //                if (float.IsNaN(p.X)) yield break;
+        //                // 非背景模式下，控制自动范围
+        //                if (!Background) {
+        //                    areaX += p.X;
+        //                    areaY += p.Y;
+        //                    if (FrameMode) {
+        //                        areaXFrame += p.X;
+        //                        areaYFrame += p.Y;
+        //                    }
+        //                }
+        //                // 存储最末有效点
+        //                yield return p;
+        //                // 迭代器移动，失败直接退出
+        //                if (!itor.MoveNext()) yield break;
+        //            }
+        //        }
+        //        // 执行划分
+        //        while (true) {
+        //            var group = Accumulate().ToList();
+        //            if (group.Any()) yield return group;
+        //            // 迭代器移动，失败直接退出
+        //            if (!itor.MoveNext()) {
+        //                if (!Background // 非背景模式
+        //                 && !FrameMode  // 非帧模式（帧模式下所有有效点已经计算过）
+        //                 && last.HasValue     // 存在有效点
+        //                ) {
+        //                    areaXFrame += last?.X;
+        //                    areaYFrame += last?.Y;
+        //                }
+        //                yield break;
+        //            }
+        //        }
+        //    }
+        //}
 
         public override string ToString() => Title;
         public override bool Equals(object obj)

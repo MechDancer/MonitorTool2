@@ -15,24 +15,6 @@ using Windows.UI;
 using Windows.UI.Xaml.Media;
 
 namespace MonitorTool2 {
-    internal static class Global {
-        public static readonly DateTime T0 = DateTime.Now;
-
-        private static readonly SolidColorBrush
-            NoneBrush = new SolidColorBrush(Colors.DarkRed),
-            SubscribedBrush = new SolidColorBrush(Colors.Goldenrod),
-            ActiveBrush = new SolidColorBrush(Colors.LawnGreen);
-
-        public static SolidColorBrush StateBrush(this TopicState state) =>
-            state switch
-            {
-                TopicState.None => NoneBrush,
-                TopicState.Subscribed => SubscribedBrush,
-                TopicState.Active => ActiveBrush,
-                _ => null
-            };
-    }
-
     /// <summary>
     /// 组节点
     /// </summary>
@@ -69,7 +51,7 @@ namespace MonitorTool2 {
 
         public List<DimensionNodeBase> Dimensions { get; }
             = new List<DimensionNodeBase>{
-                new Dimension1Node(Global.T0),
+                new Dimension1Node(),
                 new Dimension2Node(),
                 new Dimension3Node(),
             };
@@ -112,14 +94,13 @@ namespace MonitorTool2 {
     /// 1 维节点
     /// </summary>
     public class Dimension1Node : DimensionNodeBase {
-        private readonly DateTime _t0;
+        private static readonly DateTime _t0 = DateTime.Now;
         private readonly Dictionary<string, Accumulator<Vector2>> _topics;
 
         public override byte Dim => 1;
 
         public override ObservableCollection<ITopicNode> Topics { get; }
-        public Dimension1Node(DateTime t0) {
-            _t0 = t0;
+        public Dimension1Node() {
             _topics = new Dictionary<string, Accumulator<Vector2>>();
             Topics = new ObservableCollection<ITopicNode>();
         }
@@ -127,7 +108,7 @@ namespace MonitorTool2 {
             Debug.Assert(!dir);
             Debug.Assert(!frame);
             if (!_topics.TryGetValue(name, out var accumulator)) {
-                accumulator = new Accumulator<Vector2>(name, dir);
+                accumulator = new Accumulator1(name);
                 Topics.Add(accumulator);
                 _topics.Add(name, accumulator);
                 return;
@@ -159,7 +140,7 @@ namespace MonitorTool2 {
         public override void Receive(string name, bool dir, bool frame, MemoryStream stream) {
             if (frame) {
                 if (!_frames.TryGetValue(name, out var frameNode)) {
-                    frameNode = new Frame<Vector3>(name, dir);
+                    frameNode = new Frame2(name);
                     _frames.Add(name, frameNode);
                     Topics.Add(frameNode);
                     return;
@@ -168,7 +149,7 @@ namespace MonitorTool2 {
                 Task.Run(() => frameNode.Receive(Parse(dir, stream)));
             } else {
                 if (!_accumulators.TryGetValue(name, out var accumulator)) {
-                    accumulator = new Accumulator<Vector3>(name, dir);
+                    accumulator = new Accumulator2(name);
                     _accumulators.Add(name, accumulator);
                     Topics.Add(accumulator);
                     return;
@@ -203,68 +184,61 @@ namespace MonitorTool2 {
     /// 3 维节点
     /// </summary>
     public class Dimension3Node : DimensionNodeBase {
-        private static readonly Vector3 NaNVector = new Vector3(float.NaN, float.NaN, float.NaN);
-
-        private readonly Dictionary<string, Accumulator<(Vector3, Vector3)>> _accumulators;
-        private readonly Dictionary<string, Frame<(Vector3, Vector3)>> _frames;
+        private readonly Dictionary<string, Accumulator<Vector3>> _accumulators;
+        private readonly Dictionary<string, Frame<Vector3>> _frames;
 
         public override byte Dim => 3;
 
         public override ObservableCollection<ITopicNode> Topics { get; }
         public Dimension3Node() {
-            _accumulators = new Dictionary<string, Accumulator<(Vector3, Vector3)>>();
-            _frames = new Dictionary<string, Frame<(Vector3, Vector3)>>();
+            _accumulators = new Dictionary<string, Accumulator<Vector3>>();
+            _frames = new Dictionary<string, Frame<Vector3>>();
             Topics = new ObservableCollection<ITopicNode>();
         }
         public override void Receive(string name, bool dir, bool frame, MemoryStream stream) {
-
+            Debug.Assert(!dir);
             if (frame) {
                 if (!_frames.TryGetValue(name, out var frameNode)) {
-                    frameNode = new Frame<(Vector3, Vector3)>(name, dir);
+                    frameNode = new Frame3(name);
                     _frames.Add(name, frameNode);
                     Topics.Add(frameNode);
                     return;
                 } else if (frameNode.State == TopicState.None)
                     return;
-                Task.Run(() => frameNode.Receive(Parse(dir, stream)));
+                Task.Run(() => frameNode.Receive(Parse(stream)));
             } else {
                 if (!_accumulators.TryGetValue(name, out var accumulator)) {
-                    accumulator = new Accumulator<(Vector3, Vector3)>(name, dir);
+                    accumulator = new Accumulator3(name);
                     _accumulators.Add(name, accumulator);
                     Topics.Add(accumulator);
                     return;
                 } else if (accumulator.State == TopicState.None)
                     return;
-                Task.Run(() => accumulator.Receive(Parse(dir, stream)));
+                Task.Run(() => accumulator.Receive(Parse(stream)));
             }
         }
-        private static (Vector3, Vector3)[] Parse(bool dir, MemoryStream stream) {
+        private static Vector3[] Parse(MemoryStream stream) {
             var reader = new NetworkDataReader(stream);
-            (Vector3, Vector3)[] buffer;
-            if (dir) {
-                var count = (stream.Length - stream.Position) / (6 * sizeof(float));
-                buffer = new (Vector3, Vector3)[count];
-                for (var i = 0; i < count; ++i)
-                    buffer[i] = (new Vector3(reader.ReadFloat(),
-                                             reader.ReadFloat(),
-                                             reader.ReadFloat()),
-                                 new Vector3(reader.ReadFloat(),
-                                             reader.ReadFloat(),
-                                             reader.ReadFloat()));
-            } else {
-                var count = (stream.Length - stream.Position) / (3 * sizeof(float));
-                buffer = new (Vector3, Vector3)[count];
-                for (var i = 0; i < count; ++i)
-                    buffer[i] = (new Vector3(reader.ReadFloat(),
-                                             reader.ReadFloat(),
-                                             reader.ReadFloat()),
-                                 NaNVector);
-            }
+            Vector3[] buffer;
+
+            var count = (stream.Length - stream.Position) / (3 * sizeof(float));
+            buffer = new Vector3[count];
+            for (var i = 0; i < count; ++i)
+                buffer[i] = new Vector3(reader.ReadFloat(),
+                                         reader.ReadFloat(),
+                                         reader.ReadFloat());
             return buffer;
         }
     }
 
+    /// <summary>
+    /// 话题订阅状态
+    /// </summary>
     public enum TopicState { None, Subscribed, Active }
+
+    /// <summary>
+    /// 话题节点接口
+    /// </summary>
     public interface ITopicNode {
         string Name { get; }
         TopicState State { get; }
@@ -296,8 +270,8 @@ namespace MonitorTool2 {
         }
         public abstract IEnumerable Data { get; }
 
-        protected AccumulatorNodeBase(string name, bool dir)
-            => Name = $"[{(dir ? "位姿" : "位置")}][点]{name}";
+        protected AccumulatorNodeBase(string name)
+            => Name = $"[点]{name}";
         protected void Paint() {
             foreach (var observer in _observers)
                 observer.Paint();
@@ -345,8 +319,8 @@ namespace MonitorTool2 {
         }
         public abstract IEnumerable Data { get; }
 
-        protected FrameNodeBase(string name, bool dir)
-            => Name = $"[{(dir ? "位姿" : "位置")}][帧]{name}";
+        protected FrameNodeBase(string name)
+            => Name = $"[帧]{name}";
         protected void Paint() {
             foreach (var observer in _observers)
                 observer.Paint();
@@ -381,7 +355,7 @@ namespace MonitorTool2 {
         private readonly List<T> _data = new List<T>();
 
         public override IEnumerable Data => _data;
-        public Accumulator(string name, bool dir) : base(name, dir) { }
+        public Accumulator(string name) : base(name) { }
         public void Receive(params T[] data) {
             lock (_data) {
                 if (data.Length >= Capacity) {
@@ -406,7 +380,7 @@ namespace MonitorTool2 {
         private readonly List<T> _data = new List<T>();
 
         public override IEnumerable Data => _data;
-        public Frame(string name, bool dir) : base(name, dir) { }
+        public Frame(string name) : base(name) { }
         public void Receive(params T[] data) {
             lock (_data) {
                 _data.Clear();
@@ -418,5 +392,25 @@ namespace MonitorTool2 {
             lock (_data) { _data.Clear(); }
             Paint();
         }
+    }
+
+    public sealed class Accumulator1 : Accumulator<Vector2> {
+        public Accumulator1(string name) : base(name) { }
+    }
+
+    public sealed class Accumulator2 : Accumulator<Vector3> {
+        public Accumulator2(string name) : base(name) { }
+    }
+
+    public sealed class Accumulator3 : Accumulator<Vector3> {
+        public Accumulator3(string name) : base(name) { }
+    }
+
+    public sealed class Frame2 : Frame<Vector3> {
+        public Frame2(string name) : base(name) { }
+    }
+
+    public sealed class Frame3 : Frame<Vector3> {
+        public Frame3(string name) : base(name) { }
     }
 }

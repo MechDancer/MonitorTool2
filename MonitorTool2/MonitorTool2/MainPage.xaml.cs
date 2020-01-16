@@ -8,9 +8,11 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using Windows.Storage;
+using Windows.UI;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Media;
 
 namespace MonitorTool2 {
     public sealed partial class MainPage {
@@ -116,13 +118,11 @@ namespace MonitorTool2 {
                 .OfType<GraphicViewModel>()
                 .SingleOrDefault()
                 ?.Let(model => {
-                    if (model.Dim < 3) {
-                        var view = new GraphicView(model);
-                        model.Resume();
-                        MainGrid.Children.Add(view);
-                        Grid.SetColumn(view, 1);
-                        return Tuple.Create(view, model);
-                    } else return null;
+                    var view = new GraphicView(model);
+                    model.Resume();
+                    MainGrid.Children.Add(view);
+                    Grid.SetColumn(view, 1);
+                    return Tuple.Create(view, model);
                 });
         }
         private void LeftInline(object sender, RoutedEventArgs e) {
@@ -179,5 +179,19 @@ namespace MonitorTool2 {
           => control.Dispatcher.RunAsync(
               CoreDispatcherPriority.Normal,
               () => action(control));
+
+        private static readonly SolidColorBrush
+         _noneBrush = new SolidColorBrush(Colors.DarkRed),
+         _subscribedBrush = new SolidColorBrush(Colors.Goldenrod),
+         _activeBrush = new SolidColorBrush(Colors.LawnGreen);
+
+        public static SolidColorBrush Brushify(this TopicState state) =>
+            state switch
+            {
+                TopicState.None => _noneBrush,
+                TopicState.Subscribed => _subscribedBrush,
+                TopicState.Active => _activeBrush,
+                _ => null
+            };
     }
 }
