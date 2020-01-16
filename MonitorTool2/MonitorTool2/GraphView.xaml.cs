@@ -3,10 +3,8 @@ using MechDancer.Framework.Net.Resources;
 using Microsoft.Graphics.Canvas.Text;
 using Microsoft.Graphics.Canvas.UI.Xaml;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -37,6 +35,9 @@ namespace MonitorTool2 {
         }
 
         private void CanvasControl_Draw(CanvasControl sender, CanvasDrawEventArgs args) {
+            // 筛选活跃话题
+            var actives = _viewModel.Topics.Where(it => it.Active).ToList();
+            if (actives.None()) return;
             // 笔刷
             var brush = args.DrawingSession;
             // 画布尺寸
@@ -49,65 +50,20 @@ namespace MonitorTool2 {
             var areaXFrame = auto && _viewModel.AutoWidthFrame ? Area.Init() : (Area?)null;
             var areaYFrame = auto && _viewModel.AutoHeightFrame ? Area.Init() : (Area?)null;
             // 刷新工作范围
-            if (!_viewModel.IsLocked) {
-                // 筛选活跃话题
-                var actives = _viewModel.Topics.Where(it => it.Active).ToList();
-                if (actives.None()) return;
-                // 从话题缓存抄录所有点，同时确定工作范围
-                IEnumerable<List<Vector3>> Split(TopicViewModel2 topic) {
-                    lock (topic.Data) {
-                        // 取出迭代器，没有任何点则直接退出
-                        var itor = topic.Data.OfType<Vector3>().GetEnumerator();
-                        if (!itor.MoveNext()) yield break;
-                        // 初始化末有效点存储
-                        var last = (Vector2?)null;
-                        // 否则按分隔符划分数据
-                        IEnumerable<Vector3> Accumulate() {
-                            while (true) {
-                                var p = itor.Current;
-                                last = new Vector2(p.X, p.Y);
-                                // 对于分隔符，由外部控制迭代器移动
-                                if (float.IsNaN(p.X)) yield break;
-                                // 非背景模式下，控制自动范围
-                                if (!topic.Background) {
-                                    areaX += p.X;
-                                    areaY += p.Y;
-                                    if (topic.FrameMode) {
-                                        areaXFrame += p.X;
-                                        areaYFrame += p.Y;
-                                    }
-                                }
-                                // 存储最末有效点
-                                yield return p;
-                                // 迭代器移动，失败直接退出
-                                if (!itor.MoveNext()) yield break;
-                            }
-                        }
-                        // 执行划分
-                        while (true) {
-                            var group = Accumulate().ToList();
-                            if (group.Any()) yield return group;
-                            // 迭代器移动，失败直接退出
-                            if (!itor.MoveNext()) {
-                                if (!topic.Background // 非背景模式
-                                 && !topic.FrameMode  // 非帧模式（帧模式下所有有效点已经计算过）
-                                 && last.HasValue     // 存在有效点
-                                ) {
-                                    areaXFrame += last?.X;
-                                    areaYFrame += last?.Y;
-                                }
-                                yield break;
-                            }
-                        }
-                    }
-                }
-                // 执行抄录
-                _memory = (from topic in actives
-                           let data = Split((TopicViewModel2)topic).ToList()
-                           where data.Any()
-                           select (ITopicMemory)new TopicMemory2(topic.Color, topic.Connect, topic.Radius, data)
-                          ).ToList();
-            }
+            if (!_viewModel.IsLocked)
+                _memory = (_viewModel.Dim switch
+                {
+                    1 => from topic in actives
+                         let data = ((TopicViewModel1)topic).Split(ref areaX, ref areaY, ref areaXFrame, ref areaYFrame)
+                         where data.Any()
+                         select (ITopicMemory)new TopicMemory1(topic.Color, topic.Connect, topic.Radius, data),
+                    2 => from topic in actives
+                         let data = ((TopicViewModel2)topic).Split(ref areaX, ref areaY, ref areaXFrame, ref areaYFrame)
+                         where data.Any()
+                         select (ITopicMemory)new TopicMemory2(topic.Color, topic.Connect, topic.Radius, data),
+                    3 => throw new NotImplementedException(),
+                    _ => throw new InvalidDataException()
+                }).ToList();
             // 显示范围
             var width = canvasW - 2 * BlankBorderWidth;
             var height = canvasH - 2 * BlankBorderWidth;
@@ -251,7 +207,7 @@ namespace MonitorTool2 {
     /// <summary>
     /// 一维区间
     /// </summary>
-    internal struct Area {
+    public struct Area {
         public readonly float T0, T1;
         public float C => (T0 + T1) / 2;
         public float L => T1 - T0;
@@ -507,6 +463,68 @@ namespace MonitorTool2 {
             _remote = remote;
             Graph = graph;
         }
+        protected List<List<T>> SplitInternal<T>(
+            IEnumerable<T> list,
+            ref Area? xAll,
+            ref Area? yAll,
+            ref Area? xFrame,
+            ref Area? yFrame,
+            Func<T, Vector2> block
+        ) {
+            var _xAll = xAll?.AcceptUnless(_ => Background);
+            var _yAll = yAll?.AcceptUnless(_ => Background);
+            var _xFrame = xFrame?.AcceptUnless(_ => Background);
+            var _yFrame = yFrame?.AcceptUnless(_ => Background);
+
+            IEnumerable<List<T>> Inner() {
+                // 取出迭代器，没有任何点则直接退出
+                var itor = list.GetEnumerator();
+                if (!itor.MoveNext()) yield break;
+                // 初始化末有效点存储
+                var last = (Vector2?)null;
+                // 否则按分隔符划分数据
+                IEnumerable<T> Accumulate() {
+                    while (true) {
+                        var p = itor.Current;
+                        last = block(p);
+                        // 对于分隔符，由外部控制迭代器移动
+                        if (float.IsNaN(last.Value.X)) yield break;
+                        // 非背景模式下，控制自动范围
+                        _xAll += last?.X;
+                        _yAll += last?.Y;
+                        if (FrameMode) {
+                            _xFrame += last?.X;
+                            _yFrame += last?.Y;
+                        }
+                        // 存储最末有效点
+                        yield return p;
+                        // 迭代器移动，失败直接退出
+                        if (!itor.MoveNext()) yield break;
+                    }
+                }
+                // 执行划分
+                while (true) {
+                    var group = Accumulate().ToList();
+                    if (group.Any()) yield return group;
+                    // 迭代器移动，失败直接退出
+                    if (!itor.MoveNext()) {
+                        if (!FrameMode) {
+                            _xFrame += last?.X;
+                            _yFrame += last?.Y;
+                        }
+                        yield break;
+                    }
+                }
+            }
+
+            List<List<T>> result;
+            lock (list) { result = Inner().ToList(); }
+            if (_xAll.HasValue) xAll = _xAll;
+            if (_yAll.HasValue) yAll = _yAll;
+            if (_xFrame.HasValue) xFrame = _xFrame;
+            if (_yFrame.HasValue) yFrame = _yFrame;
+            return result;
+        }
 
         public string Title => $"{_remote}-{Core.Name}";
         public bool FrameMode => Core is FrameNodeBase;
@@ -594,6 +612,19 @@ namespace MonitorTool2 {
             _core = (Accumulator1)stub.Core;
             _core.SetLevel(Graph, TopicState.Active);
         }
+
+        internal List<List<Vector2>> Split(
+           ref Area? xAll,
+           ref Area? yAll,
+           ref Area? xFrame,
+           ref Area? yFrame
+        ) => SplitInternal(
+           Data,
+           ref xAll,
+           ref yAll,
+           ref xFrame,
+           ref yFrame,
+           p => p);
     }
 
     /// <summary>
@@ -609,6 +640,19 @@ namespace MonitorTool2 {
             _core = (ITopicNode<Vector3>)stub.Core;
             _core.SetLevel(Graph, TopicState.Active);
         }
+
+        internal List<List<Vector3>> Split(
+            ref Area? xAll,
+            ref Area? yAll,
+            ref Area? xFrame,
+            ref Area? yFrame
+        ) => SplitInternal(
+            Data,
+            ref xAll,
+            ref yAll,
+            ref xFrame,
+            ref yFrame,
+            p => new Vector2(p.X, p.Y));
     }
 
     /// <summary>
@@ -624,5 +668,19 @@ namespace MonitorTool2 {
             _core = (ITopicNode<Vector3>)stub.Core;
             _core.SetLevel(Graph, TopicState.Active);
         }
+
+        internal List<List<Vector3>> Split(
+            Vector3 u,
+            ref Area? xAll,
+            ref Area? yAll,
+            ref Area? xFrame,
+            ref Area? yFrame
+        ) => SplitInternal(
+            Data,
+            ref xAll,
+            ref yAll,
+            ref xFrame,
+            ref yFrame,
+            p => new Vector2(p.X, p.Y));
     }
 }
