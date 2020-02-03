@@ -130,7 +130,7 @@
     </Compile>
     <Compile Include="Source\Nodes.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Source\Pose.cs" />
+    <Compile Include="Source\Pose3D.cs" />
     <Compile Include="Source\Quaternion.cs" />
     <Compile Include="Source\TopicStructs.cs" />
   </ItemGroup>
