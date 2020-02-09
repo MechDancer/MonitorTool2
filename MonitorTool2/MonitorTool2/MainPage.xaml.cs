@@ -1,5 +1,6 @@
 ﻿using MechDancer.Common;
 using MechDancer.Framework.Net.Presets;
+using MonitorTool2.Source;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -173,7 +174,7 @@ namespace MonitorTool2 {
     /// <summary>
     /// 扩展函数
     /// </summary>
-    internal static class Functions {
+    internal static partial class Functions {
         internal static void Dispatch<T>(this T control, Action<T> action)
           where T : DependencyObject
           => control.Dispatcher.RunAsync(

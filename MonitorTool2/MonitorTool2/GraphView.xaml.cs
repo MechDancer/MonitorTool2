@@ -2,6 +2,7 @@
 using MechDancer.Framework.Net.Resources;
 using Microsoft.Graphics.Canvas.Text;
 using Microsoft.Graphics.Canvas.UI.Xaml;
+using MonitorTool2.Source;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -24,6 +25,7 @@ namespace MonitorTool2 {
 
         private List<ITopicMemory> _memory = new List<ITopicMemory>();
         private Vector2? _pointer = null, _pressed = null, _released = null;
+        private Pose3D _viewerPose = new Pose3D();
         private GraphicViewModel _viewModel { get; }
         private ObservableCollection<TopicStub> _allTopics { get; }
             = new ObservableCollection<TopicStub>();
@@ -49,21 +51,38 @@ namespace MonitorTool2 {
             var areaY = auto && _viewModel.AutoHeightAll ? Area.Init() : (Area?)null;
             var areaXFrame = auto && _viewModel.AutoWidthFrame ? Area.Init() : (Area?)null;
             var areaYFrame = auto && _viewModel.AutoHeightFrame ? Area.Init() : (Area?)null;
-            // 刷新工作范围
+            // 缓存数据
             if (!_viewModel.IsLocked)
                 _memory = (_viewModel.Dim switch
                 {
                     1 => from topic in actives
-                         let data = ((TopicViewModel1)topic).Split(ref areaX, ref areaY, ref areaXFrame, ref areaYFrame)
+                         let data = ((TopicViewModel1)topic).Split()
                          where data.Any()
-                         select (ITopicMemory)new TopicMemory1(topic.Color, topic.Connect, topic.Radius, data),
+                         select (ITopicMemory)new TopicMemory1(topic, data),
                     2 => from topic in actives
-                         let data = ((TopicViewModel2)topic).Split(ref areaX, ref areaY, ref areaXFrame, ref areaYFrame)
+                         let data = ((TopicViewModel2)topic).Split()
                          where data.Any()
-                         select (ITopicMemory)new TopicMemory2(topic.Color, topic.Connect, topic.Radius, data),
-                    3 => throw new NotImplementedException(),
+                         select (ITopicMemory)new TopicMemory2(topic, data),
+                    3 => from topic in actives
+                         let data = ((TopicViewModel3)topic).Split()
+                         where data.Any()
+                         select (ITopicMemory)new TopicMemory3(topic, data),
                     _ => throw new InvalidDataException()
                 }).ToList();
+            // 转换到视平面
+            var mapped = (_viewModel.Dim switch
+            {
+                1 => from topic in _memory
+                     select ((TopicMemory1)topic)
+                                .Process(ref areaX, ref areaY, ref areaXFrame, ref areaYFrame, topic.FrameMode),
+                2 => from topic in _memory
+                     select ((TopicMemory2)topic)
+                                .Process(ref areaX, ref areaY, ref areaXFrame, ref areaYFrame, topic.FrameMode),
+                3 => from topic in _memory
+                     select ((TopicMemory3)topic)
+                                .Process(ref areaX, ref areaY, ref areaXFrame, ref areaYFrame, topic.FrameMode, _viewerPose),
+                _ => throw new InvalidDataException()
+            }).ToList();
             // 显示范围
             var width = canvasW - 2 * BlankBorderWidth;
             var height = canvasH - 2 * BlankBorderWidth;
@@ -95,7 +114,9 @@ namespace MonitorTool2 {
                                  out var transform,
                                  out var inverse);
             // 在缓存上迭代
-            foreach (var (color, connect, r, topic) in _memory.OfType<TopicMemoryBase<Vector3>>()) {
+            for (var i = 0; i < _memory.Count; ++i) {
+                var (color, connect, r) = _memory[i];
+                var topic = mapped[i];
                 foreach (var group in topic) {
                     Vector2 current = default;
                     var notFirst = false;
@@ -463,68 +484,6 @@ namespace MonitorTool2 {
             _remote = remote;
             Graph = graph;
         }
-        protected List<List<T>> SplitInternal<T>(
-            IEnumerable<T> list,
-            ref Area? xAll,
-            ref Area? yAll,
-            ref Area? xFrame,
-            ref Area? yFrame,
-            Func<T, Vector2> block
-        ) {
-            var _xAll = xAll?.AcceptUnless(_ => Background);
-            var _yAll = yAll?.AcceptUnless(_ => Background);
-            var _xFrame = xFrame?.AcceptUnless(_ => Background);
-            var _yFrame = yFrame?.AcceptUnless(_ => Background);
-
-            IEnumerable<List<T>> Inner() {
-                // 取出迭代器，没有任何点则直接退出
-                var itor = list.GetEnumerator();
-                if (!itor.MoveNext()) yield break;
-                // 初始化末有效点存储
-                var last = (Vector2?)null;
-                // 否则按分隔符划分数据
-                IEnumerable<T> Accumulate() {
-                    while (true) {
-                        var p = itor.Current;
-                        last = block(p);
-                        // 对于分隔符，由外部控制迭代器移动
-                        if (float.IsNaN(last.Value.X)) yield break;
-                        // 非背景模式下，控制自动范围
-                        _xAll += last?.X;
-                        _yAll += last?.Y;
-                        if (FrameMode) {
-                            _xFrame += last?.X;
-                            _yFrame += last?.Y;
-                        }
-                        // 存储最末有效点
-                        yield return p;
-                        // 迭代器移动，失败直接退出
-                        if (!itor.MoveNext()) yield break;
-                    }
-                }
-                // 执行划分
-                while (true) {
-                    var group = Accumulate().ToList();
-                    if (group.Any()) yield return group;
-                    // 迭代器移动，失败直接退出
-                    if (!itor.MoveNext()) {
-                        if (!FrameMode) {
-                            _xFrame += last?.X;
-                            _yFrame += last?.Y;
-                        }
-                        yield break;
-                    }
-                }
-            }
-
-            List<List<T>> result;
-            lock (list) { result = Inner().ToList(); }
-            if (_xAll.HasValue) xAll = _xAll;
-            if (_yAll.HasValue) yAll = _yAll;
-            if (_xFrame.HasValue) xFrame = _xFrame;
-            if (_yFrame.HasValue) yFrame = _yFrame;
-            return result;
-        }
 
         public string Title => $"{_remote}-{Core.Name}";
         public bool FrameMode => Core is FrameNodeBase;
@@ -574,7 +533,7 @@ namespace MonitorTool2 {
         }
 
         internal bool CheckEquals(TopicStub stub)
-           => _remote == stub.Remote && Core.Name == stub.Core.Name;
+            => _remote == stub.Remote && Core.Name == stub.Core.Name;
         internal void Close()
             => Core.SetLevel(Graph, TopicState.None);
 
@@ -583,6 +542,32 @@ namespace MonitorTool2 {
             => this == obj || Title == (obj as TopicViewModelBase)?.Title;
         public override int GetHashCode()
             => Title.GetHashCode(StringComparison.Ordinal);
+
+        /// <summary>
+        /// 去除分隔符并分段
+        /// </summary>
+        /// <typeparam name="T">数据类型</typeparam>
+        /// <param name="list">列表</param>
+        /// <param name="splitter">分隔符</param>
+        /// <returns>数据</returns>
+        protected static IEnumerable<List<T>> SplitData<T>(
+           IEnumerable<T> list,
+           Func<T, bool> splitter) {
+            List<T> group = null;
+            foreach (var item in list) {
+                if (splitter(item)) {
+                    if (group != null) {
+                        yield return group;
+                        group = null;
+                    }
+                } else {
+                    group ??= new List<T>();
+                    group.Add(item);
+                }
+            }
+            if (group != null) 
+                yield return group;
+        }
 
         #region 生成随机颜色
         private static readonly Random _engine = new Random();
@@ -613,18 +598,11 @@ namespace MonitorTool2 {
             _core.SetLevel(Graph, TopicState.Active);
         }
 
-        internal List<List<Vector2>> Split(
-           ref Area? xAll,
-           ref Area? yAll,
-           ref Area? xFrame,
-           ref Area? yFrame
-        ) => SplitInternal(
-           Data,
-           ref xAll,
-           ref yAll,
-           ref xFrame,
-           ref yFrame,
-           p => p);
+        internal List<List<Vector2>> Split() {
+            lock (_core.Data) {
+                return SplitData(_core.Data, it => float.IsNaN(it.Y)).ToList();
+            }
+        }
     }
 
     /// <summary>
@@ -641,18 +619,11 @@ namespace MonitorTool2 {
             _core.SetLevel(Graph, TopicState.Active);
         }
 
-        internal List<List<Vector3>> Split(
-            ref Area? xAll,
-            ref Area? yAll,
-            ref Area? xFrame,
-            ref Area? yFrame
-        ) => SplitInternal(
-            Data,
-            ref xAll,
-            ref yAll,
-            ref xFrame,
-            ref yFrame,
-            p => new Vector2(p.X, p.Y));
+        internal List<List<Vector3>> Split() {
+            lock (_core.Data) {
+                return SplitData(_core.Data, it => float.IsNaN(it.X)).ToList();
+            }
+        }
     }
 
     /// <summary>
@@ -669,18 +640,10 @@ namespace MonitorTool2 {
             _core.SetLevel(Graph, TopicState.Active);
         }
 
-        internal List<List<Vector3>> Split(
-            Vector3 u,
-            ref Area? xAll,
-            ref Area? yAll,
-            ref Area? xFrame,
-            ref Area? yFrame
-        ) => SplitInternal(
-            Data,
-            ref xAll,
-            ref yAll,
-            ref xFrame,
-            ref yFrame,
-            p => new Vector2(p.X, p.Y));
+        internal List<List<Vector3>> Split() {
+            lock (_core.Data) {
+                return SplitData(_core.Data, it => float.IsNaN(it.X)).ToList();
+            }
+        }
     }
 }
