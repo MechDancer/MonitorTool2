@@ -172,7 +172,12 @@ namespace MonitorTool2 {
             e.AddedItems
                 .OfType<TopicStub>()
                 .SingleOrDefault()
-                ?.Let(it => new TopicViewModel2(it, _viewModel))
+                ?.Let<TopicStub, TopicViewModelBase>(it => _viewModel.Dim switch {
+                    1 => new TopicViewModel1(it, _viewModel),
+                    2 => new TopicViewModel2(it, _viewModel),
+                    3 => new TopicViewModel3(it, _viewModel),
+                    _ => throw new IndexOutOfRangeException()
+                })
                 ?.TakeUnless(_viewModel.Topics.Contains)
                 ?.Also(_viewModel.Topics.Add);
         }

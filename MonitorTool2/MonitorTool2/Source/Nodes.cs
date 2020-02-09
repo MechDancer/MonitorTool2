@@ -183,6 +183,7 @@ namespace MonitorTool2 {
 
         public override byte Dim => 3;
         public override ObservableCollection<ITopicNode> Topics { get; }
+            = new ObservableCollection<ITopicNode>();
         public override void Receive(string name, bool dir, bool frame, MemoryStream stream) {
             Debug.Assert(!dir);
             if (frame) {
