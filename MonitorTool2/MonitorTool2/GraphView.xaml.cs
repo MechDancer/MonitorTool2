@@ -30,8 +30,8 @@ namespace MonitorTool2 {
 
         public GraphicView(GraphicViewModel model) {
             InitializeComponent();
-            _viewModel = model;
-            model.SetControl(MainCanvas);
+            _viewModel = model ?? throw new ArgumentNullException(paramName: nameof(model));
+            _viewModel.SetControl(MainCanvas);
         }
 
         private void CanvasControl_Draw(CanvasControl sender, CanvasDrawEventArgs args) {

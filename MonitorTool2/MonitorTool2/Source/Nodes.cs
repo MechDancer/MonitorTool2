@@ -1,8 +1,8 @@
 ﻿using MechDancer.Common;
 using MechDancer.Framework.Net.Presets;
 using MechDancer.Framework.Net.Protocol;
+using MonitorTool2.Source;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -11,8 +11,6 @@ using System.Linq;
 using System.Net;
 using System.Numerics;
 using System.Threading.Tasks;
-using Windows.UI;
-using Windows.UI.Xaml.Media;
 
 namespace MonitorTool2 {
     /// <summary>
@@ -222,23 +220,37 @@ namespace MonitorTool2 {
     }
 
     /// <summary>
-    /// 话题订阅状态
-    /// </summary>
-    public enum TopicState { None, Subscribed, Active }
-
-    /// <summary>
-    /// 话题节点接口
+    /// 话题节点功能接口
     /// </summary>
     public interface ITopicNode {
+        /// <summary>
+        /// 话题名
+        /// </summary>
         string Name { get; }
+
+        /// <summary>
+        /// 订阅状态
+        /// </summary>
         TopicState State { get; }
 
+        /// <summary>
+        /// 通知在某个图中的订阅级别
+        /// </summary>
+        /// <param name="source">图</param>
+        /// <param name="level">级别</param>
         void SetLevel(GraphicViewModel source, TopicState level);
+
+        /// <summary>
+        /// 清除数据
+        /// </summary>
         void Clear();
     }
 
-    public interface ITopicNode<T>
-        : ITopicNode
+    /// <summary>
+    /// 话题节点数据接口
+    /// </summary>
+    /// <typeparam name="T">保存数据类型</typeparam>
+    public interface ITopicNode<T> : ITopicNode
         where T : struct {
         IReadOnlyList<T> Data { get; }
     }
@@ -248,52 +260,24 @@ namespace MonitorTool2 {
     /// </summary>
     public abstract class AccumulatorNodeBase
         : BindableBase, ITopicNode {
-        private readonly HashSet<GraphicViewModel>
-            _subscribers = new HashSet<GraphicViewModel>(),
-            _observers = new HashSet<GraphicViewModel>();
+        private readonly GraphicManager _manager
+            = new GraphicManager();
 
         private int _capacity = 1000;
-        private TopicState _state = TopicState.None;
 
         public string Name { get; }
-        public TopicState State {
-            get => _state;
-            private set => SetProperty(ref _state, value);
-        }
+        public TopicState State => _manager.State;
+
         public int Capacity {
             get => _capacity;
             set => SetProperty(ref _capacity, value);
         }
 
-        protected AccumulatorNodeBase(string name)
-            => Name = $"[点]{name}";
-        protected void Paint() {
-            foreach (var observer in _observers)
-                observer.Paint();
-        }
+        protected AccumulatorNodeBase(string name) => Name = $"[点]{name}";
+        protected void Paint() => _manager.Paint();
 
-        public void SetLevel(GraphicViewModel source, TopicState level) {
-            switch (level) {
-                case TopicState.None:
-                    if (_subscribers.Remove(source))
-                        _observers.Remove(source);
-                    break;
-                case TopicState.Subscribed:
-                    if (!_observers.Remove(source))
-                        _subscribers.Add(source);
-                    break;
-                case TopicState.Active:
-                    if (_observers.Add(source))
-                        _subscribers.Add(source);
-                    break;
-            }
-            if (_observers.Any())
-                State = TopicState.Active;
-            else if (_subscribers.Any())
-                State = TopicState.Subscribed;
-            else
-                State = TopicState.None;
-        }
+        public void SetLevel(GraphicViewModel source, TopicState level)
+            => _manager.SetLevel(source, level);
         public abstract void Clear();
     }
 
@@ -302,47 +286,17 @@ namespace MonitorTool2 {
     /// </summary>
     public abstract class FrameNodeBase
         : BindableBase, ITopicNode {
-        private readonly HashSet<GraphicViewModel>
-           _subscribers = new HashSet<GraphicViewModel>(),
-           _observers = new HashSet<GraphicViewModel>();
-
-        private TopicState _state = TopicState.None;
+        private readonly GraphicManager _manager
+            = new GraphicManager();
 
         public string Name { get; }
-        public TopicState State {
-            get => _state;
-            private set => SetProperty(ref _state, value);
-        }
+        public TopicState State => _manager.State;
 
-        protected FrameNodeBase(string name)
-            => Name = $"[帧]{name}";
-        protected void Paint() {
-            foreach (var observer in _observers)
-                observer.Paint();
-        }
+        protected FrameNodeBase(string name) => Name = $"[帧]{name}";
+        protected void Paint() => _manager.Paint();
 
-        public void SetLevel(GraphicViewModel source, TopicState level) {
-            switch (level) {
-                case TopicState.None:
-                    if (_subscribers.Remove(source))
-                        _observers.Remove(source);
-                    break;
-                case TopicState.Subscribed:
-                    if (!_observers.Remove(source))
-                        _subscribers.Add(source);
-                    break;
-                case TopicState.Active:
-                    if (_observers.Add(source))
-                        _subscribers.Add(source);
-                    break;
-            }
-            if (_observers.Any())
-                State = TopicState.Active;
-            else if (_subscribers.Any())
-                State = TopicState.Subscribed;
-            else
-                State = TopicState.None;
-        }
+        public void SetLevel(GraphicViewModel source, TopicState level)
+           => _manager.SetLevel(source, level);
         public abstract void Clear();
     }
 
