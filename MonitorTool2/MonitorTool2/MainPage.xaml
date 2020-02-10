@@ -93,6 +93,12 @@
             DimensionTemplate="{StaticResource DimensionTemplate}"
             FrameTemplate="{StaticResource FrameTemplate}"
             AccumulatorTemplate="{StaticResource AccumulatorTemplate}"/>
+
+        <Style TargetType="Button" x:Key="DimSelector">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="Foreground" Value="LawnGreen"/>
+        </Style>
     </Page.Resources>
 
     <SplitView x:Name="ConfigView"
@@ -135,41 +141,42 @@
                           Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"/>
             </Grid>
         </SplitView.Pane>
-        <SplitView x:Name="GraphList"
+        <SplitView x:Name="GraphListPane"
                    PanePlacement="Right"
-                   OpenPaneLength="320">
+                   OpenPaneLength="320"
+                   PaneOpening="GraphListPane_PaneOpening">
             <SplitView.Pane>
                 <Grid Margin="8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition/>
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition/>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition/>
+                        <ColumnDefinition/>
                     </Grid.ColumnDefinitions>
 
-                    <Button Content="&#xE710;" FontFamily="Segoe MDL2 Assets"
-                            Click="AddGraph"
-                            Foreground="LawnGreen"
-                            VerticalAlignment="Stretch"/>
                     <TextBox x:Name="GraphNameBox"
-                             PlaceholderText="Untitled"
-                             MaxLength="12"
-                             Grid.Row="0" Grid.Column="1"/>
-                    <ComboBox x:Name="DimBox"
-                              SelectedIndex="1"
-                              Grid.Row="0" Grid.Column="2">
-                        <x:String>1 维</x:String>
-                        <x:String>2 维</x:String>
-                        <x:String>3 维</x:String>
-                    </ComboBox>
-                    <ListView ItemsSource="{x:Bind _graphs}"
+                             PlaceholderText="命名"
+                             MaxLength="16"
+                             Grid.ColumnSpan="3"/>
+                    <Button Content="1" Click="AddGraph"
+                            Style="{StaticResource DimSelector}"
+                            Grid.Column="0" Margin="0,4,2,0"/>
+                    <Button Content="2" Click="AddGraph"
+                            Style="{StaticResource DimSelector}"
+                            Grid.Column="1" Margin="2,4,2,0"/>
+                    <Button Content="3" Click="AddGraph"
+                            Style="{StaticResource DimSelector}"
+                            Grid.Column="2" Margin="2,4,0,0"/>
+                    <ListView x:Name="GraphList"
+                              ItemsSource="{x:Bind _graphs}"
                               Margin="0,8,0,0"
                               HorizontalAlignment="Stretch"
                               HorizontalContentAlignment="Stretch"
-                              Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                              Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
                               SelectedIndex="0"
                               SelectionChanged="ListView_SelectionChanged">
                         <ListView.ItemTemplate>

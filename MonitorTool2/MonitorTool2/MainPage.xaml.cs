@@ -27,6 +27,7 @@ namespace MonitorTool2 {
         private Tuple<GraphicView, GraphicViewModel> _current;
 
         private IPEndPoint _memory;
+        private ulong _graphCount = 1;
 
         private readonly HashSet<IPEndPoint> _endPoints;
         private readonly ObservableCollection<GraphicViewModel> _graphs;
@@ -49,7 +50,7 @@ namespace MonitorTool2 {
             InitializeComponent();
         }
         private void ShowTopics(object sender, RoutedEventArgs e) => ConfigView.IsPaneOpen = true;
-        private void ShowGraphList(object sender, RoutedEventArgs e) => GraphList.IsPaneOpen = true;
+        private void ShowGraphList(object sender, RoutedEventArgs e) => GraphListPane.IsPaneOpen = true;
         private void AddGroup() {
             var newHub = new RemoteHub(name: $"Monitor[{_memory}]", group: _memory);
             var node = new GroupNode(newHub);
@@ -98,10 +99,18 @@ namespace MonitorTool2 {
             if (!((sender as Button)?.DataContext is ITopicNode node)) return;
             node.Clear();
         }
+        private void GraphListPane_PaneOpening(SplitView sender, object args) {
+            GraphNameBox.Text = $"Graph{_graphCount}";
+            GraphNameBox.SelectAll();
+        }
         private void AddGraph(object sender, RoutedEventArgs e) {
             var name = GraphNameBox.Text.Trim();
+            var dim = ((Button)sender).Content;
             if (string.IsNullOrWhiteSpace(name) || _graphs.Any(it => it.Name == name)) return;
-            _graphs.Add(new GraphicViewModel(name, (byte)(DimBox.SelectedIndex + 1)));
+            _graphs.Add(new GraphicViewModel(name, byte.Parse((string)dim)));
+            GraphNameBox.Text = $"Graph{++_graphCount}";
+            GraphNameBox.SelectAll();
+            GraphList.SelectedIndex = GraphList.Items.Count - 1;
         }
         private void RemoveGraph(object sender, RoutedEventArgs e) {
             if (!((sender as Button)?.DataContext is GraphicViewModel graph)) return;
