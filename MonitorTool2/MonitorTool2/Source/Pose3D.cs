@@ -106,9 +106,7 @@ namespace MonitorTool2.Source {
         }
         private static Vector3 RotateVector(Vector3 v, Vector3 d) {
             var q = Angle(d);
-            var result = q * Position(v) * q.Conjugate;
-            Debug.Assert(MathF.Abs(result.R) < float.Epsilon);
-            return result.V;
+            return (q * Position(v) * q.Conjugate).V;
         }
         private static Vector3 RotateAngle(Vector3 a, Vector3 d) {
             var q = Angle(a) * Angle(d);

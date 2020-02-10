@@ -82,6 +82,12 @@
                     </Flyout>
                 </AppBarButton.Flyout>
             </AppBarButton>
+            <AppBarButton Label="重置视角" Visibility="{x:Bind _viewModel.Show3D}"
+                          Click="ResetViewer_Click">
+                <AppBarButton.Icon>
+                    <FontIcon Glyph="&#xE714;"/>
+                </AppBarButton.Icon>
+            </AppBarButton>
             <CommandBar.Content>
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{x:Bind _viewModel.Name}" 

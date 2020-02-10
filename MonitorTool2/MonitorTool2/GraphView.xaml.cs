@@ -24,8 +24,8 @@ namespace MonitorTool2 {
         public float BlankBorderWidth { get; set; } = 8;
 
         private List<ITopicMemory> _memory = new List<ITopicMemory>();
-        private Vector2? _pointer = null, _pressed = null, _released = null;
         private Pose3D _viewerPose = new Pose3D();
+        private Vector2? _pointer = null, _pressed = null, _released = null;
         private GraphicViewModel _viewModel { get; }
         private ObservableCollection<TopicStub> _allTopics { get; }
             = new ObservableCollection<TopicStub>();
@@ -80,7 +80,7 @@ namespace MonitorTool2 {
                                 .Process(ref areaX, ref areaY, ref areaXFrame, ref areaYFrame, topic.FrameMode),
                 3 => from topic in _memory
                      select ((TopicMemory3)topic)
-                                .Process(ref areaX, ref areaY, ref areaXFrame, ref areaYFrame, topic.FrameMode, _viewerPose),
+                                .Process(ref areaX, ref areaY, ref areaXFrame, ref areaYFrame, topic.FrameMode, _viewerPose.Inverse()),
                 _ => throw new InvalidDataException()
             }).ToList();
             // 显示范围
@@ -213,9 +213,17 @@ namespace MonitorTool2 {
 
             MainCanvas.Invalidate();
         }
+        private void ResetViewer_Click(object sender, Windows.UI.Xaml.RoutedEventArgs e) 
+            => _viewerPose = new Pose3D();
         private void MainCanvas_PointerMoved(object sender, PointerRoutedEventArgs e) {
             var pointer = e.GetCurrentPoint((CanvasControl)sender);
-            _pointer = new Vector2((float)pointer.Position.X, (float)pointer.Position.Y);
+            var current = new Vector2((float)pointer.Position.X, (float)pointer.Position.Y);
+            if (_viewModel.Dim == 3 && pointer.Properties.IsRightButtonPressed && _pointer.HasValue) {
+                var delta = current - _pointer.Value;
+                _viewerPose *= new Pose3D(Vector3.Zero, new Vector3(0, 1, 0) * (delta.X / 1000.0f));
+                _viewerPose *= new Pose3D(Vector3.Zero, new Vector3(1, 0, 0) * (delta.Y / 1000.0f));
+            }
+            _pointer = current;
             if (pointer.Properties.IsLeftButtonPressed)
                 _pressed ??= _pointer;
             else if (_pressed.HasValue)
@@ -234,7 +242,8 @@ namespace MonitorTool2 {
     /// 一维区间
     /// </summary>
     public struct Area {
-        public readonly float T0, T1;
+        public float T0 { get; }
+        public float T1 { get; }
         public float C => (T0 + T1) / 2;
         public float L => T1 - T0;
 
@@ -402,6 +411,7 @@ namespace MonitorTool2 {
             }
         }
         public bool Collapse1D => Dim != 1;
+        public bool Show3D => Dim == 3;
 
         internal void Transform(
             float width,
