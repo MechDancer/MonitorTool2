@@ -20,7 +20,7 @@ namespace MonitorTool2.Source {
         /// <summary>
         /// 旋转轴
         /// </summary>
-        public Vector3 U => Normalize(D);
+        public Vector3 U => D.Normalize();
 
         /// <summary>
         /// 转角
@@ -92,17 +92,13 @@ namespace MonitorTool2.Source {
 
         private static string View(Vector3 v) =>
             $"({v.X}, {v.Y}, {v.Z})";
-        private static Vector3 Normalize(Vector3 v) {
-            var l = v.Length();
-            return l < float.Epsilon ? new Vector3() : Vector3.Normalize(v);
-        }
         private static Quaternion Position(Vector3 v) =>
            new Quaternion(0, v);
         private static Quaternion Angle(Vector3 v) {
             var half = v.Length();
             if (half > MathF.PI)
                 half -= MathF.PI * (int)((half - MathF.PI) / MathF.PI);
-            return new Quaternion(MathF.Cos(half), Normalize(v) * MathF.Sin(half));
+            return new Quaternion(MathF.Cos(half), v.Normalize() * MathF.Sin(half));
         }
         private static Vector3 RotateVector(Vector3 v, Vector3 d) {
             var q = Angle(d);
@@ -110,7 +106,7 @@ namespace MonitorTool2.Source {
         }
         private static Vector3 RotateAngle(Vector3 a, Vector3 d) {
             var q = Angle(a) * Angle(d);
-            return Normalize(q.V) * MathF.Atan2(q.V.Length(), q.R);
+            return q.V.Normalize() * MathF.Atan2(q.V.Length(), q.R);
         }
     }
 }

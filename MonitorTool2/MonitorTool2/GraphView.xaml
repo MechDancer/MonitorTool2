@@ -70,6 +70,13 @@
                 </AppBarButton.Flyout>
             </AppBarButton>
             <AppBarSeparator/>
+            <AppBarToggleButton Label="原点"
+                                IsChecked="{x:Bind _viewModel.ShowOrigin,Mode=TwoWay}"
+                                Visibility="{x:Bind _viewModel.Collapse1D}">
+                <AppBarToggleButton.Icon>
+                    <FontIcon Glyph="&#xE81D;"/>
+                </AppBarToggleButton.Icon>
+            </AppBarToggleButton>
             <AppBarButton Label="背景颜色"
                           BorderBrush="{x:Bind local:GraphicViewModel.Brushify(_viewModel.BackGround),Mode=OneWay}">
                 <AppBarButton.Icon>
@@ -153,12 +160,27 @@
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition/>
                                             </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition/>
+                                                <RowDefinition/>
+                                            </Grid.RowDefinitions>
                                             <TextBlock Text="点尺寸"
                                                        Margin="0,0,2,4"
-                                                       VerticalAlignment="Center"/>
+                                                       VerticalAlignment="Center"
+                                                       Grid.Row="0" Grid.Column="0"/>
                                             <Slider Value="{x:Bind Radius,Mode=TwoWay}"
                                                     Minimum=".5" Maximum="24" StepFrequency=".5"
-                                                    Margin="2,0,0,4" Grid.Column="1"
+                                                    Margin="2,0,0,4" 
+                                                    Grid.Row="0" Grid.Column="1"
+                                                    HorizontalAlignment="Stretch"/>
+                                            <TextBlock Text="线宽度"
+                                                       Margin="0,0,2,4"
+                                                       VerticalAlignment="Center"
+                                                       Grid.Row="1" Grid.Column="0"/>
+                                            <Slider Value="{x:Bind Width,Mode=TwoWay}"
+                                                    Minimum="1" Maximum="6"
+                                                    Margin="2,0,0,4" 
+                                                    Grid.Row="1" Grid.Column="1"
                                                     HorizontalAlignment="Stretch"/>
                                         </Grid>
                                         <ColorPicker Color="{x:Bind Color,Mode=TwoWay}"

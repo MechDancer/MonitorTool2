@@ -8,7 +8,7 @@
 
   <Identity
     Name="2aa036b7-5e6d-4588-9733-194dbe3fafea"
-    Publisher="CN=ydrml"
+    Publisher="CN=YangDeRui"
     Version="1.0.0.0" />
 
   <mp:PhoneIdentity PhoneProductId="2aa036b7-5e6d-4588-9733-194dbe3fafea" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>

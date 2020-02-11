@@ -113,9 +113,35 @@ namespace MonitorTool2 {
                                  BlankBorderWidth,
                                  out var transform,
                                  out var inverse);
+            // 画原点
+            if (_viewModel.ShowOrigin)
+                switch (_viewModel.Dim) {
+                    case 2: {
+                            var o = transform(Vector2.Zero);
+                            brush.DrawLine(o, o + 30 * Vector2.UnitX, Colors.Red, 2);
+                            brush.DrawLine(o, o - 30 * Vector2.UnitY, Colors.Goldenrod, 2);
+                            break;
+                        }
+                    case 3: {
+                            var tf = _viewerPose.Inverse();
+                            Vector2 TF(Vector3 v)
+                                => transform((tf * v).Let(it => new Vector2(it.X, it.Y)));
+
+                            var o = TF(Vector3.Zero);
+                            var x_ = TF(Vector3.UnitX) - o;
+                            var y_ = TF(Vector3.UnitY) - o;
+                            var z_ = TF(Vector3.UnitZ) - o;
+                            var k = 30 / MathF.Max(MathF.Max(x_.Length(), y_.Length()), z_.Length());
+
+                            brush.DrawLine(o, o + x_ * k, Colors.Red, 2);
+                            brush.DrawLine(o, o + y_ * k, Colors.Goldenrod, 2);
+                            brush.DrawLine(o, o + z_ * k, Colors.SkyBlue, 2);
+                            break;
+                        }
+                }
             // 在缓存上迭代
             for (var i = 0; i < _memory.Count; ++i) {
-                var (color, connect, r) = _memory[i];
+                var (color, connect, r, w) = _memory[i];
                 var topic = mapped[i];
                 foreach (var group in topic) {
                     Vector2 current = default;
@@ -125,10 +151,10 @@ namespace MonitorTool2 {
                         var last = current;
                         current = transform(new Vector2(pose.X, pose.Y));
                         // 画点
-                        brush.DrawCircle(current.X, current.Y, 1, color, r);
+                        brush.DrawCircle(current, 1, color, r);
                         // 画线
                         if (notFirst && connect)
-                            brush.DrawLine(last, current, color);
+                            brush.DrawLine(last, current, color, w);
                         else
                             notFirst = true;
                         // 画姿态
@@ -305,7 +331,8 @@ namespace MonitorTool2 {
                      _autoHeightAll = true,
                      _autoHeightFrame = false,
                      _allowHeightShrink = false,
-                     _autoRange = true;
+                     _autoRange = true,
+                     _showOrigin = false;
         private Area _rangeX, _rangeY;
 
         private void ConfigChanged(bool value, Action mutex) {
@@ -370,7 +397,10 @@ namespace MonitorTool2 {
         }
         public bool AllowWidthShrink {
             get => _allowWidthShrink;
-            set => SetProperty(ref _allowWidthShrink, value);
+            set {
+                if (SetProperty(ref _allowWidthShrink, value))
+                    _canvas.Invalidate();
+            }
         }
         public bool AutoHeightAll {
             get => _autoHeightAll;
@@ -388,7 +418,17 @@ namespace MonitorTool2 {
         }
         public bool AllowHeightShrink {
             get => _allowHeightShrink;
-            set => SetProperty(ref _allowHeightShrink, value);
+            set {
+                if (SetProperty(ref _allowHeightShrink, value))
+                    _canvas.Invalidate();
+            }
+        }
+        public bool ShowOrigin {
+            get => _showOrigin;
+            set {
+                if (SetProperty(ref _showOrigin, value))
+                    _canvas.Invalidate();
+            }
         }
         public string X0Text => _rangeX.T0.ToString("0.000");
         public string X1Text => _rangeX.T1.ToString("0.000");
@@ -492,6 +532,7 @@ namespace MonitorTool2 {
                      _background = false,
                      _connect = false;
         private float _radius = 2;
+        private float _width = 1;
 
         protected abstract ITopicNode Core { get; }
         protected GraphicViewModel Graph { get; }
@@ -546,6 +587,13 @@ namespace MonitorTool2 {
                     Graph.Paint();
             }
         }
+        public float Width {
+            get => _width;
+            set {
+                if (SetProperty(ref _width, value))
+                    Graph.Paint();
+            }
+        }
 
         internal bool CheckEquals(TopicStub stub)
             => _remote == stub.Remote && Core.Name == stub.Core.Name;
@@ -580,7 +628,7 @@ namespace MonitorTool2 {
                     group.Add(item);
                 }
             }
-            if (group != null) 
+            if (group != null)
                 yield return group;
         }
 

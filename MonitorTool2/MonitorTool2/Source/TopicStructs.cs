@@ -28,9 +28,10 @@ namespace MonitorTool2 {
         public Color Color { get; }
         public bool Connect { get; }
         public float Radius { get; }
+        public float Width { get; }
         public bool FrameMode { get; }
 
-        public void Deconstruct(out Color color, out bool connect, out float radius);
+        public void Deconstruct(out Color color, out bool connect, out float radius, out float width);
     }
 
     /// <summary>
@@ -44,19 +45,22 @@ namespace MonitorTool2 {
         public Color Color { get; }
         public bool Connect { get; }
         public float Radius { get; }
+        public float Width { get; }
         public bool FrameMode { get; }
         public List<List<T>> Data { get; }
         protected TopicMemoryBase(TopicViewModelBase topic, List<List<T>> data) {
             Color = topic.Color;
             Connect = topic.Connect;
             Radius = topic.Radius;
+            Width = topic.Width;
             FrameMode = topic.FrameMode;
             Data = data;
         }
-        public void Deconstruct(out Color color, out bool connect, out float radius) {
+        public void Deconstruct(out Color color, out bool connect, out float radius, out float width) {
             color = Color;
             connect = Connect;
             radius = Radius;
+            width = Width;
         }
 
         protected List<List<Vector3>> ProcessInternal(
@@ -170,6 +174,16 @@ namespace MonitorTool2 {
                 block(item);
                 yield return item;
             }
+        }
+
+        public static Vector2 Normalize(this Vector2 v) {
+            var l = v.Length();
+            return l < float.Epsilon ? Vector2.Zero : Vector2.Normalize(v);
+        }
+
+        public static Vector3 Normalize(this Vector3 v) {
+            var l = v.Length();
+            return l < float.Epsilon ? Vector3.Zero : Vector3.Normalize(v);
         }
     }
 }
