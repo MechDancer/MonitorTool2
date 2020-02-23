@@ -327,10 +327,10 @@ namespace MonitorTool2 {
                      _axisEquals,
                      _autoWidthAll = true,
                      _autoWidthFrame = false,
-                     _allowWidthShrink = false,
+                     _allowWidthShrink,
                      _autoHeightAll = true,
                      _autoHeightFrame = false,
-                     _allowHeightShrink = false,
+                     _allowHeightShrink,
                      _autoRange = true,
                      _showOrigin = false;
         private Area _rangeX, _rangeY;
@@ -346,6 +346,7 @@ namespace MonitorTool2 {
             Name = name;
             Dim = dim;
             _axisEquals = dim > 1;
+            _allowHeightShrink = _allowWidthShrink = dim == 1;
         }
 
         public string Name { get; }
@@ -530,8 +531,8 @@ namespace MonitorTool2 {
         private bool _active = true,
                      _pause = false,
                      _background = false,
-                     _connect = false;
-        private float _radius = 2;
+                     _connect;
+        private float _radius;
         private float _width = 1;
 
         protected abstract ITopicNode Core { get; }
@@ -539,6 +540,8 @@ namespace MonitorTool2 {
         protected TopicViewModelBase(string remote, GraphicViewModel graph) {
             _remote = remote;
             Graph = graph;
+            _connect = graph.Dim == 1;
+            _radius = graph.Dim == 1 ? .5f : 2f;
         }
 
         public string Title => $"{_remote}-{Core.Name}";
