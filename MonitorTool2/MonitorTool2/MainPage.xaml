@@ -60,9 +60,6 @@
                 <TextBlock Text="{x:Bind Name}"
                            Margin="4,0,16,0"
                            VerticalAlignment="Center"/>
-                <Button Foreground="Tomato"
-                        Content="&#xED61;" FontFamily="Segoe MDL2 Assets"
-                        Click="ClearData_Click"/>
             </StackPanel>
         </DataTemplate>
 
@@ -79,10 +76,6 @@
                            VerticalAlignment="Center"/>
                 <TextBox Text="{x:Bind Capacity, Mode=TwoWay}"
                          VerticalContentAlignment="Bottom"/>
-                <Button Foreground="Tomato"
-                        VerticalAlignment="Stretch"
-                        Content="&#xED61;" FontFamily="Segoe MDL2 Assets"
-                        Click="ClearData_Click"/>
             </StackPanel>
         </DataTemplate>
 
@@ -108,6 +101,7 @@
             <Grid Margin="8">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition/>
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
@@ -132,13 +126,20 @@
                               Margin="8,0,0,0"
                               Grid.Row="0" Grid.Column="2"
                               Content="&#xE840;" FontFamily="Segoe MDL2 Assets"/>
-                <TreeView ItemsSource="{x:Bind local:MainPage.Groups}"
+                <Button Margin="8"
+                        Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                        HorizontalAlignment="Stretch"
+                        Foreground="Tomato"
+                        Click="Button_Click"
+                        Content="&#xE75C;" FontFamily="Segoe MDL2 Assets"/>
+                <TreeView x:Name="TopicTree"
+                          ItemsSource="{x:Bind local:MainPage.Groups}"
                           ItemTemplateSelector="{StaticResource TreeTemplateSelector}"
-                          Margin="-24,8,0,0"
+                          Margin="0,8,0,0"
                           AllowDrop="False"
                           CanDragItems="False"
-                          SelectionMode="None"
-                          Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"/>
+                          SelectionMode="Multiple"
+                          Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"/>
             </Grid>
         </SplitView.Pane>
         <SplitView x:Name="GraphListPane"

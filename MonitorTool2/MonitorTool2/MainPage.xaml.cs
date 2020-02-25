@@ -95,10 +95,6 @@ namespace MonitorTool2 {
             if (!((sender as Button)?.DataContext is RemoteNode node)) return;
             node.Close();
         }
-        private void ClearData_Click(object sender, RoutedEventArgs e) {
-            if (!((sender as Button)?.DataContext is ITopicNode node)) return;
-            node.Clear();
-        }
         private void GraphListPane_PaneOpening(SplitView sender, object args) {
             GraphNameBox.Text = $"Graph{_graphCount}";
             GraphNameBox.SelectAll();
@@ -158,6 +154,11 @@ namespace MonitorTool2 {
                 if (!byte.TryParse(temp[i], out ip[i])) return false;
             result.Address = new IPAddress(ip);
             return true;
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e) {
+            foreach (var topic in TopicTree.SelectedNodes.Select(it => it.Content).OfType<ITopicNode>())
+                topic.Clear();
         }
     }
 
