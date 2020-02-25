@@ -126,7 +126,7 @@
                               Margin="8,0,0,0"
                               Grid.Row="0" Grid.Column="2"
                               Content="&#xE840;" FontFamily="Segoe MDL2 Assets"/>
-                <Button Margin="8"
+                <Button Margin="0,8,0,0"
                         Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
                         HorizontalAlignment="Stretch"
                         Foreground="Tomato"
@@ -135,7 +135,7 @@
                 <TreeView x:Name="TopicTree"
                           ItemsSource="{x:Bind local:MainPage.Groups}"
                           ItemTemplateSelector="{StaticResource TreeTemplateSelector}"
-                          Margin="0,8,0,0"
+                          Margin="0,2,0,0"
                           AllowDrop="False"
                           CanDragItems="False"
                           SelectionMode="Multiple"

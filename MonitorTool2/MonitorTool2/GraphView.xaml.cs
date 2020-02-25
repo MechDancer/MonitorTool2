@@ -241,6 +241,12 @@ namespace MonitorTool2 {
         }
         private void ResetViewer_Click(object sender, Windows.UI.Xaml.RoutedEventArgs e) 
             => _viewerPose = new Pose3D();
+        private void ListView_SelectionChanged(object sender, SelectionChangedEventArgs e) {
+            foreach(var item in e.AddedItems.OfType<TopicViewModelBase>())
+                item.HighLighting = true;
+            foreach (var item in e.RemovedItems.OfType<TopicViewModelBase>())
+                item.HighLighting = false;
+        }
         private void MainCanvas_PointerMoved(object sender, PointerRoutedEventArgs e) {
             var pointer = e.GetCurrentPoint((CanvasControl)sender);
             var current = new Vector2((float)pointer.Position.X, (float)pointer.Position.Y);
@@ -534,6 +540,8 @@ namespace MonitorTool2 {
                      _connect;
         private float _radius;
         private float _width = 1;
+
+        public bool HighLighting { get; set; } = false;
 
         protected abstract ITopicNode Core { get; }
         protected GraphicViewModel Graph { get; }

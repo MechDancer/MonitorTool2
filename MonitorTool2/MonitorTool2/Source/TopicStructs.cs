@@ -51,8 +51,13 @@ namespace MonitorTool2 {
         protected TopicMemoryBase(TopicViewModelBase topic, List<List<T>> data) {
             Color = topic.Color;
             Connect = topic.Connect;
-            Radius = topic.Radius;
-            Width = topic.Width;
+            if (topic.HighLighting) {
+                Radius = topic.Radius + 8;
+                Width = topic.Width + 8;
+            } else {
+                Radius = topic.Radius;
+                Width = topic.Width;
+            }
             FrameMode = topic.FrameMode;
             Data = data;
         }

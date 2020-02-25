@@ -122,10 +122,11 @@
                                  PointerExited="MainCanvas_PointerExited"
                                  PointerWheelChanged="MainCanvas_PointerWheelChanged"/>
         </Border>
-        <ListView SelectionMode="None"
+        <ListView SelectionMode="Extended"
                   IsItemClickEnabled="False"
                   ItemsSource="{x:Bind _viewModel.Topics}"
                   HorizontalAlignment="Right"
+                  SelectionChanged="ListView_SelectionChanged"
                   Margin="2" Grid.Row="1" Grid.Column="2">
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="local:TopicViewModelBase">
