@@ -30,6 +30,7 @@ namespace MonitorTool2 {
         public float Radius { get; }
         public float Width { get; }
         public bool FrameMode { get; }
+        public bool Background { get; }
 
         public void Deconstruct(out Color color, out bool connect, out float radius, out float width);
     }
@@ -47,6 +48,7 @@ namespace MonitorTool2 {
         public float Radius { get; }
         public float Width { get; }
         public bool FrameMode { get; }
+        public bool Background { get; }
         public List<List<T>> Data { get; }
         protected TopicMemoryBase(TopicViewModelBase topic, List<List<T>> data) {
             Color = topic.Color;
@@ -59,6 +61,7 @@ namespace MonitorTool2 {
                 Width = topic.Width;
             }
             FrameMode = topic.FrameMode;
+            Background = topic.Background;
             Data = data;
         }
         public void Deconstruct(out Color color, out bool connect, out float radius, out float width) {
@@ -74,34 +77,44 @@ namespace MonitorTool2 {
             ref Area? xFrame,
             ref Area? yFrame,
             bool frameMode,
+            bool background,
             Func<T, Vector3> block
         ) {
+            // 闭包只能捕获本地变量
             var _xAll = xAll;
             var _yAll = yAll;
             var _xFrame = xFrame;
             var _yFrame = yFrame;
-
+            // 更新所有数据范围
             void A(Vector3 it) {
                 _xAll += it.X;
                 _yAll += it.Y;
             }
-
+            // 更新末帧数据范围
             void B(Vector3 it) {
                 _xFrame += it.X;
                 _yFrame += it.Y;
             }
-
+            // 全部更新
             void C(Vector3 it) {
                 A(it);
                 B(it);
             }
-
-            var func = frameMode ? (Action<Vector3>)C : A;
-            var result = Data
-                .Select(group => group.Select(block).OnEach(func).ToList())
-                .OnEach(group => { if (!frameMode) B(group.Last()); })
-                .ToList();
-
+            // 帧模式下才需要更新末帧范围
+            List<List<Vector3>> result;
+            if (background) {
+                result = Data
+                    .Select(group => group.Select(block).ToList())
+                    .ToList();
+            }
+            else {
+                var func = frameMode ? (Action<Vector3>)C : A;
+                result = Data
+                    .Select(group => group.Select(block).OnEach(func).ToList())
+                    .OnEach(group => { if (!frameMode) B(group.Last()); })
+                    .ToList();
+            }
+            // 本地变量还原到引用
             xAll = _xAll;
             yAll = _yAll;
             xFrame = _xFrame;
@@ -120,13 +133,15 @@ namespace MonitorTool2 {
             ref Area? yAll,
             ref Area? xFrame,
             ref Area? yFrame,
-            bool frameMode
+            bool frameMode,
+            bool background
         ) => ProcessInternal(
                 ref xAll,
                 ref yAll,
                 ref xFrame,
                 ref yFrame,
                 frameMode,
+                background,
                 p => new Vector3(p.X, p.Y, float.NaN));
     }
 
@@ -139,13 +154,15 @@ namespace MonitorTool2 {
             ref Area? yAll,
             ref Area? xFrame,
             ref Area? yFrame,
-            bool frameMode
+            bool frameMode,
+            bool background
         ) => ProcessInternal(
                 ref xAll,
                 ref yAll,
                 ref xFrame,
                 ref yFrame,
                 frameMode,
+                background,
                 p => new Vector3(p.X, p.Y, p.Z));
     }
 
@@ -159,6 +176,7 @@ namespace MonitorTool2 {
             ref Area? xFrame,
             ref Area? yFrame,
             bool frameMode,
+            bool background,
             Pose3D pose
         ) => ProcessInternal(
                 ref xAll,
@@ -166,6 +184,7 @@ namespace MonitorTool2 {
                 ref xFrame,
                 ref yFrame,
                 frameMode,
+                background,
                 p => (pose * p).Let(it => new Vector3(it.X, it.Y, float.NaN)));
     }
 

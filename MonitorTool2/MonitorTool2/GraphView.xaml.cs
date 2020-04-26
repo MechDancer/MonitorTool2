@@ -74,13 +74,13 @@ namespace MonitorTool2 {
             {
                 1 => from topic in _memory
                      select ((TopicMemory1)topic)
-                                .Process(ref areaX, ref areaY, ref areaXFrame, ref areaYFrame, topic.FrameMode),
+                                .Process(ref areaX, ref areaY, ref areaXFrame, ref areaYFrame, topic.FrameMode, topic.Background),
                 2 => from topic in _memory
                      select ((TopicMemory2)topic)
-                                .Process(ref areaX, ref areaY, ref areaXFrame, ref areaYFrame, topic.FrameMode),
+                                .Process(ref areaX, ref areaY, ref areaXFrame, ref areaYFrame, topic.FrameMode, topic.Background),
                 3 => from topic in _memory
                      select ((TopicMemory3)topic)
-                                .Process(ref areaX, ref areaY, ref areaXFrame, ref areaYFrame, topic.FrameMode, _viewerPose.Inverse()),
+                                .Process(ref areaX, ref areaY, ref areaXFrame, ref areaYFrame, topic.FrameMode, topic.Background, _viewerPose.Inverse()),
                 _ => throw new InvalidDataException()
             }).ToList();
             // 显示范围
