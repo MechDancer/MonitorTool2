@@ -37,7 +37,7 @@ namespace MonitorTool2 {
         }
         public void Remove(RemoteNode node) {
             if (node != null && _remotes.Remove(node.Name))
-                Remotes.Remove(node);
+                _ = Remotes.Remove(node);
         }
     }
 
